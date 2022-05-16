@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/cloudspannerecosystem/harbourbridge/common/constants"
@@ -43,6 +44,7 @@ type DataCmd struct {
 	filePrefix      string // TODO: move filePrefix to global flags
 	writeLimit      int64
 	dryRun          bool
+	logLevel        string
 }
 
 // Name returns the name of operation.
@@ -77,6 +79,7 @@ func (cmd *DataCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&cmd.filePrefix, "prefix", "", "File prefix for generated files")
 	f.Int64Var(&cmd.writeLimit, "write-limit", defaultWritersLimit, "Write limit for writes to spanner")
 	f.BoolVar(&cmd.dryRun, "dry-run", false, "To validate the syntax of the command by running it in an air-gapped manner, such that no network calls are made.")
+	f.StringVar(&cmd.logLevel, "log-level", "INFO", "Configure the logging level for the command (INFO, DEBUG), defaults to INFO")
 }
 
 func (cmd *DataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -89,8 +92,11 @@ func (cmd *DataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 		}
 	}()
 	if cmd.dryRun {
-		fmt.Print("--dry-run flag is not implemented")
+		fmt.Printf("--dry-run flag is not implemented, please run the command without it")
 		return subcommands.ExitFailure
+	}
+	if strings.EqualFold(cmd.logLevel, "DEBUG") {
+		internal.VerboseInit(true)
 	}
 	conv := internal.MakeConv()
 
