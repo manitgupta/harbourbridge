@@ -37,6 +37,7 @@ type SchemaCmd struct {
 	target        string
 	targetProfile string
 	filePrefix    string // TODO: move filePrefix to global flags
+	dry_run       bool
 }
 
 // Name returns the name of operation.
@@ -67,6 +68,7 @@ func (cmd *SchemaCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&cmd.target, "target", "Spanner", "Specifies the target DB, defaults to Spanner (accepted values: `Spanner`)")
 	f.StringVar(&cmd.targetProfile, "target-profile", "", "Flag for specifying connection profile for target database e.g., \"dialect=postgresql\"")
 	f.StringVar(&cmd.filePrefix, "prefix", "", "File prefix for generated files")
+	f.BoolVar(&cmd.dry_run, "dry-run", false, "Flag for specifying dry run mode for a command")
 }
 
 func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -78,7 +80,8 @@ func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 			fmt.Printf("FATAL error: %v\n", err)
 		}
 	}()
-
+	internal.DryRunInit(cmd.dry_run)
+	fmt.Printf("Dry run mode: %v\n", cmd.dry_run)
 	sourceProfile, err := profiles.NewSourceProfile(cmd.sourceProfile, cmd.source)
 	if err != nil {
 		return subcommands.ExitUsageError
@@ -98,7 +101,14 @@ func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 	if sourceProfile.Ty == profiles.SourceProfileTypeFile && (sourceProfile.File.Format == "" || sourceProfile.File.Format == "dump") {
 		dumpFilePath = sourceProfile.File.Path
 	}
+
+	if internal.DryRun() {
+		fmt.Println("Command successfully validated.")
+		return subcommands.ExitSuccess
+	}
+
 	ioHelper := utils.NewIOStreams(sourceProfile.Driver, dumpFilePath)
+
 	if ioHelper.SeekableIn != nil {
 		defer ioHelper.In.Close()
 	}
@@ -112,7 +122,6 @@ func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interfa
 		}
 		cmd.filePrefix = dbName + "."
 	}
-
 	schemaConversionStartTime := time.Now()
 	var conv *internal.Conv
 	conv, err = conversion.SchemaConv(sourceProfile, targetProfile, &ioHelper)
