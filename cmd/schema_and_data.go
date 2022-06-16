@@ -30,6 +30,7 @@ import (
 	"github.com/cloudspannerecosystem/harbourbridge/proto/migration"
 	"github.com/google/subcommands"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // SchemaAndDataCmd struct with flags.
@@ -41,6 +42,7 @@ type SchemaAndDataCmd struct {
 	skipForeignKeys bool
 	filePrefix      string // TODO: move filePrefix to global flags
 	writeLimit      int64
+	logLevel        string
 }
 
 // Name returns the name of operation.
@@ -73,15 +75,18 @@ func (cmd *SchemaAndDataCmd) SetFlags(f *flag.FlagSet) {
 	f.BoolVar(&cmd.skipForeignKeys, "skip-foreign-keys", false, "Skip creating foreign keys after data migration is complete (ddl statements for foreign keys can still be found in the downloaded schema.ddl.txt file and the same can be applied separately)")
 	f.StringVar(&cmd.filePrefix, "prefix", "", "File prefix for generated files")
 	f.Int64Var(&cmd.writeLimit, "write-limit", defaultWritersLimit, "Write limit for writes to spanner")
+	f.StringVar(&cmd.logLevel, "log-level", "INFO", "Configure the logging level for the command (INFO, DEBUG), defaults to INFO")
 }
 
 func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	// Cleanup hb tmp data directory in case residuals remain from prev runs.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
+	internal.InitializeLogger(cmd.logLevel)
+	defer internal.Logger.Sync()
 	var err error
 	defer func() {
 		if err != nil {
-			fmt.Printf("FATAL error: %v\n", err)
+			internal.Logger.Fatal("FATAL error", zap.Error(err))
 		}
 	}()
 

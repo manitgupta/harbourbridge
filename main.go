@@ -97,6 +97,8 @@ Sample usage:
 func main() {
 	ctx := context.Background()
 	lf, err := utils.SetupLogFile()
+	internal.InitializeLogger("INFO")
+	defer internal.Logger.Sync()
 	if err != nil {
 		fmt.Printf("\nCan't set up log file: %v\n", err)
 		panic(fmt.Errorf("can't set up log file"))

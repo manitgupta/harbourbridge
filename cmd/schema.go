@@ -28,6 +28,7 @@ import (
 	"github.com/cloudspannerecosystem/harbourbridge/internal"
 	"github.com/cloudspannerecosystem/harbourbridge/profiles"
 	"github.com/google/subcommands"
+	"go.uber.org/zap"
 )
 
 // SchemaCmd struct with flags.
@@ -37,6 +38,7 @@ type SchemaCmd struct {
 	target        string
 	targetProfile string
 	filePrefix    string // TODO: move filePrefix to global flags
+	logLevel      string
 }
 
 // Name returns the name of operation.
@@ -67,15 +69,18 @@ func (cmd *SchemaCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&cmd.target, "target", "Spanner", "Specifies the target DB, defaults to Spanner (accepted values: `Spanner`)")
 	f.StringVar(&cmd.targetProfile, "target-profile", "", "Flag for specifying connection profile for target database e.g., \"dialect=postgresql\"")
 	f.StringVar(&cmd.filePrefix, "prefix", "", "File prefix for generated files")
+	f.StringVar(&cmd.logLevel, "log-level", "INFO", "Configure the logging level for the command (INFO, DEBUG), defaults to INFO")
 }
 
 func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	// Cleanup hb tmp data directory in case residuals remain from prev runs.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
+	internal.InitializeLogger(cmd.logLevel)
+	defer internal.Logger.Sync()
 	var err error
 	defer func() {
 		if err != nil {
-			fmt.Printf("FATAL error: %v\n", err)
+			internal.Logger.Fatal("FATAL error", zap.Error(err))
 		}
 	}()
 

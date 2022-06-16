@@ -30,6 +30,7 @@ import (
 	"github.com/cloudspannerecosystem/harbourbridge/proto/migration"
 	"github.com/google/subcommands"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // DataCmd struct with flags.
@@ -42,6 +43,7 @@ type DataCmd struct {
 	sessionJSON     string
 	filePrefix      string // TODO: move filePrefix to global flags
 	writeLimit      int64
+	logLevel        string
 }
 
 // Name returns the name of operation.
@@ -80,10 +82,12 @@ func (cmd *DataCmd) SetFlags(f *flag.FlagSet) {
 func (cmd *DataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	// Cleanup hb tmp data directory in case residuals remain from prev runs.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
+	internal.InitializeLogger(cmd.logLevel)
+	defer internal.Logger.Sync()
 	var err error
 	defer func() {
 		if err != nil {
-			fmt.Printf("FATAL error: %v\n", err)
+			internal.Logger.Fatal("FATAL error", zap.Error(err))
 		}
 	}()
 	conv := internal.MakeConv()

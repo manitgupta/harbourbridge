@@ -76,6 +76,7 @@ func processMySQLDump(conv *internal.Conv, r *internal.Reader) error {
 		for _, stmt := range stmts {
 			isInsert := processStatement(conv, stmt)
 			internal.VerbosePrintf("Parsed SQL command at line=%d/fpos=%d: %d stmts (%d lines, %d bytes) Insert Statement=%v\n", startLine, startOffset, 1, r.LineNumber-startLine, len(b), isInsert)
+			internal.Logger.Debug(fmt.Sprintf("Parsed SQL command at line=%d/fpos=%d: %d stmts (%d lines, %d bytes) Insert Statement=%v\n", startLine, startOffset, 1, r.LineNumber-startLine, len(b), isInsert))
 		}
 		if r.EOF {
 			break
@@ -227,6 +228,8 @@ func processCreateTable(conv *internal.Conv, stmt *ast.CreateTableStmt) {
 	}
 	tableName, err := getTableName(stmt.Table)
 	internal.VerbosePrintf("processing create table elem=%s stmt=%v\n", tableName, stmt)
+	internal.Logger.Debug(fmt.Sprintf("processing create table elem=%s stmt=%v\n", tableName, stmt))
+
 	if err != nil {
 		logStmtError(conv, stmt, fmt.Errorf("can't get table name: %w", err))
 		return
@@ -574,6 +577,8 @@ func handleParseError(conv *internal.Conv, chunk string, err error, l [][]byte) 
 			if conv.SchemaMode() {
 				conv.Unexpected(fmt.Sprintf("Unsupported datatype '%s' encountered while parsing following statement at line number %d : \n%s", spatial, len(l), chunk))
 				internal.VerbosePrintf("Converting datatype '%s' to 'Text' and retrying to parse the statement\n", spatial)
+				internal.Logger.Debug(fmt.Sprintf("Converting datatype '%s' to 'Text' and retrying to parse the statement\n", spatial))
+
 			}
 			return handleSpatialDatatype(conv, chunk, l)
 		}
