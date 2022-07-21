@@ -78,6 +78,15 @@ func (cmd *SchemaCmd) SetFlags(f *flag.FlagSet) {
 }
 
 func (cmd *SchemaCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	fmt.Printf("*********INPUT FLAGS*************")
+	fmt.Printf("source" + cmd.source)
+	fmt.Printf("source-profile" + cmd.sourceProfile)
+	fmt.Printf("target" + cmd.target)
+	fmt.Printf("target-profile" + cmd.targetProfile)
+	fmt.Printf("file-prefix" + cmd.filePrefix)
+	fmt.Printf("dry-run: %t", cmd.dryRun)
+	fmt.Printf("log-level: %s", cmd.logLevel)
+	fmt.Printf("*********END*************")
 	// Cleanup hb tmp data directory in case residuals remain from prev runs.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
 	var err error
