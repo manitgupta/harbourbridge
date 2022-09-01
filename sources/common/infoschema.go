@@ -16,6 +16,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	sp "cloud.google.com/go/spanner"
@@ -153,5 +154,7 @@ func processTable(conv *internal.Conv, table SchemaAndName, infoSchema InfoSchem
 		PrimaryKeys: schemaPKeys,
 		Indexes:     indexes,
 		ForeignKeys: foreignKeys}
+	bs, _ := json.Marshal(conv.SrcSchema[name])
+	fmt.Println(string(bs))
 	return nil
 }

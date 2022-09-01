@@ -150,6 +150,7 @@ type ColumnDef struct {
 	NotNull bool
 	Comment string
 	Id      string
+	IsCaseSensitive bool
 }
 
 // Config controls how AST nodes are printed (aka unparsed).
@@ -172,13 +173,20 @@ func (c Config) quote(s string) string {
 	return s
 }
 
+func (c Config) updateCase(s string, isCaseSensitive bool) string {
+	if isCaseSensitive {
+		return "\"" + s + "\""
+	}
+	return s
+}
+
 // PrintColumnDef unparses ColumnDef and returns it as well as any ColumnDef
 // comment. These are returned as separate strings to support formatting
 // needs of PrintCreateTable.
 func (cd ColumnDef) PrintColumnDef(c Config) (string, string) {
 	var s string
 	if c.TargetDb == constants.TargetExperimentalPostgres {
-		s = fmt.Sprintf("%s %s", c.quote(cd.Name), cd.T.PGPrintColumnDefType())
+		s = fmt.Sprintf("%s %s", c.updateCase(c.quote(cd.Name), cd.IsCaseSensitive) , cd.T.PGPrintColumnDefType())
 	} else {
 		s = fmt.Sprintf("%s %s", c.quote(cd.Name), cd.T.PrintColumnDefType())
 	}

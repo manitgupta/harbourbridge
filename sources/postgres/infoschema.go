@@ -17,11 +17,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/bits"
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/civil"
@@ -245,15 +247,24 @@ func (isi InfoSchemaImpl) GetColumns(conv *internal.Conv, table common.SchemaAnd
 			}
 		}
 		ignored.Default = colDefault.Valid
+		isCaseSensitive := false
+		if strings.ToLower(colName) != colName {
+			isCaseSensitive = true
+		}
 		c := schema.Column{
 			Name:    colName,
 			Type:    toType(dataType, elementDataType, charMaxLen, numericPrecision, numericScale),
 			NotNull: common.ToNotNull(conv, isNullable),
 			Ignored: ignored,
+			IsCaseSensitive: isCaseSensitive,
+			
 		}
 		colDefs[colName] = c
 		colNames = append(colNames, colName)
 	}
+	fmt.Println("Here!!")
+	bs, _ := json.Marshal(colDefs)
+	fmt.Println(string(bs))
 	return colDefs, colNames, nil
 }
 
@@ -455,12 +466,13 @@ func cvtSQLArray(conv *internal.Conv, srcCd schema.Column, spCd ddl.ColumnDef, v
 // messages. Note that the caller is responsible for handling nil
 // values (used to represent NULL). We handle each of the remaining
 // cases of values returned by the database/sql library:
-//    bool
-//    []byte
-//    int64
-//    float64
-//    string
-//    time.Time
+//
+//	bool
+//	[]byte
+//	int64
+//	float64
+//	string
+//	time.Time
 func cvtSQLScalar(conv *internal.Conv, srcCd schema.Column, spCd ddl.ColumnDef, val interface{}) (interface{}, error) {
 	switch spCd.T.Name {
 	case ddl.Bool:

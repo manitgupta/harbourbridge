@@ -16,20 +16,21 @@
 Package common creates an outline for common functionality across the multiple
 source databases we support.
 While adding new methods or code here
-1.  Ensure that the changes do not adversely impact any source that uses the
-	common code
-2.	Test cases might not sufficiently cover all cases, so integration and
-	manual testing should be done ensure no functionality is breaking. Most of
-	the test cases that cover the code in this package will lie in the
-	implementing source databases, so it might not be required to have unit
-	tests for each method here.
-3.	Any functions added here should be used by two or more databases
-4.	If it looks like the code is getting more complex due to refactoring,
-	it is probably better off leaving the functionality out of common
+ 1. Ensure that the changes do not adversely impact any source that uses the
+    common code
+ 2. Test cases might not sufficiently cover all cases, so integration and
+    manual testing should be done ensure no functionality is breaking. Most of
+    the test cases that cover the code in this package will lie in the
+    implementing source databases, so it might not be required to have unit
+    tests for each method here.
+ 3. Any functions added here should be used by two or more databases
+ 4. If it looks like the code is getting more complex due to refactoring,
+    it is probably better off leaving the functionality out of common
 */
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"unicode"
@@ -86,11 +87,16 @@ func SchemaToSpannerDDL(conv *internal.Conv, toddl ToDdl) error {
 			if len(issues) > 0 {
 				conv.Issues[srcTable.Name][srcCol.Name] = issues
 			}
+			isCaseSensitive := false
+			if srcCol.IsCaseSensitive {
+				isCaseSensitive = true
+			}
 			spColDef[colName] = ddl.ColumnDef{
-				Name:    colName,
-				T:       ty,
-				NotNull: srcCol.NotNull,
-				Comment: "From: " + quoteIfNeeded(srcCol.Name) + " " + srcCol.Type.Print(),
+				Name:            colName,
+				T:               ty,
+				NotNull:         srcCol.NotNull,
+				Comment:         "From: " + quoteIfNeeded(srcCol.Name) + " " + srcCol.Type.Print(),
+				IsCaseSensitive: isCaseSensitive,
 			}
 		}
 		comment := "Spanner schema for source table " + quoteIfNeeded(srcTable.Name)
@@ -102,8 +108,12 @@ func SchemaToSpannerDDL(conv *internal.Conv, toddl ToDdl) error {
 			Fks:      cvtForeignKeys(conv, spTableName, srcTable.Name, srcTable.ForeignKeys),
 			Indexes:  cvtIndexes(conv, spTableName, srcTable.Name, srcTable.Indexes),
 			Comment:  comment}
+		fmt.Println("Print spSchema!!")
+		internal.ResolveRefs(conv)
+		bs, _ := json.Marshal(conv.SpSchema[spTableName])
+		fmt.Println(string(bs))
 	}
-	internal.ResolveRefs(conv)
+
 	return nil
 }
 

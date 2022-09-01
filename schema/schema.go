@@ -51,6 +51,7 @@ type Column struct {
 	NotNull bool
 	Ignored Ignored
 	Id      string
+	IsCaseSensitive bool
 }
 
 // ForeignKey represents a foreign key.
