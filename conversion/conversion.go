@@ -132,6 +132,7 @@ func connectionConfig(sourceProfile profiles.SourceProfile) (interface{}, error)
 		if !(mysqlConn.Host != "" && mysqlConn.User != "" && mysqlConn.Db != "") {
 			return profiles.GenerateMYSQLConnectionStr()
 		} else {
+			fmt.Println("Getting string!")
 			return profiles.GetSQLConnectionStr(sourceProfile), nil
 		}
 	// For Dynamodb, both legacy and new flows use env vars.
@@ -501,7 +502,7 @@ func ValidateDDL(ctx context.Context, adminClient *database.DatabaseAdminClient,
 }
 
 // CreatesOrUpdatesDatabase updates an existing Spanner database or creates a new one if one does not exist.
-func CreateOrUpdateDatabase(ctx context.Context, adminClient *database.DatabaseAdminClient, dbURI, driver, targetDb string, conv *internal.Conv, out *os.File) error {
+	func CreateOrUpdateDatabase(ctx context.Context, adminClient *database.DatabaseAdminClient, dbURI, driver, targetDb string, conv *internal.Conv, out *os.File) error {
 	dbExists, err := VerifyDb(ctx, adminClient, dbURI)
 	if err != nil {
 		return err

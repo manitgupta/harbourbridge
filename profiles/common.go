@@ -63,7 +63,7 @@ func ParseMap(s string) (map[string]string, error) {
 
 func GetSQLConnectionStr(sourceProfile SourceProfile) string {
 	sqlConnectionStr := ""
-	if sourceProfile.Ty == SourceProfileTypeConnection {
+	if (sourceProfile.Ty == SourceProfileTypeConnection) || (sourceProfile.Ty == SourceProfileTypeConfig && sourceProfile.Config.ConfigType == "shardedMySQL") {
 		switch sourceProfile.Conn.Ty {
 		case SourceProfileConnectionTypeMySQL:
 			connParams := sourceProfile.Conn.Mysql

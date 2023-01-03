@@ -15,7 +15,9 @@
 package profiles
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -429,12 +431,38 @@ func NewSourceProfileConnection(source string, params map[string]string) (Source
 	return conn, nil
 }
 
-type SourceProfileConfig struct {
-	path string
+type MySQLShardConfig struct {
+	Primary  bool
+	Host     string
+	User     string
+	Password string
+	Port     string
+	DbName   string
 }
 
-func NewSourceProfileConfig(path string) SourceProfileConfig {
-	return SourceProfileConfig{path: path}
+type ShardedMySQLConfig struct {
+	MySQLShardConfig []MySQLShardConfig
+}
+
+type SourceProfileConfig struct {
+	ConfigType         string
+	ShardedMySQLConfig ShardedMySQLConfig
+}
+
+func NewSourceProfileConfig(path string) (SourceProfileConfig, error) {
+	var sourceProfileConfig SourceProfileConfig
+	s, err := ioutil.ReadFile(path)
+	if err != nil {
+		return sourceProfileConfig, err
+	}
+	err = json.Unmarshal(s, &sourceProfileConfig)
+	if err != nil {
+		return sourceProfileConfig, err
+	}
+	if sourceProfileConfig.ConfigType != "shardedMySQL" {
+		return SourceProfileConfig{}, fmt.Errorf("config types other than shardedMySQL are not implemented yet")
+	}
+	return sourceProfileConfig, nil
 }
 
 type SourceProfileCsv struct {
@@ -510,7 +538,14 @@ func (src SourceProfile) ToLegacyDriver(source string) (string, error) {
 			}
 		}
 	case SourceProfileTypeConfig:
-		return "", fmt.Errorf("specifying source-profile using config not implemented")
+		{
+			switch strings.ToLower(source) {
+			case "mysql":
+				return constants.MYSQL, nil
+			default:
+				return "", fmt.Errorf("specifying source-profile using config is only for mysql source")
+			}
+		}
 	case SourceProfileTypeCsv:
 		return constants.CSV, nil
 	default:
@@ -553,8 +588,26 @@ func NewSourceProfile(s string, source string) (SourceProfile, error) {
 		// File is not passed in from stdin or specified using "file" flag.
 		return SourceProfile{Ty: SourceProfileTypeFile}, fmt.Errorf("file not specified, but format set to %v", format)
 	} else if file, ok := params["config"]; ok {
-		config := NewSourceProfileConfig(file)
-		return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, fmt.Errorf("source-profile type config not yet implemented")
+		config, err := NewSourceProfileConfig(file)
+		if err != nil {
+			return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, err
+		}
+		// if config is valid, it must be a shardedMySQL configuration
+		// create a conn object using the "primary" shard
+		paramsFromConfig := make(map[string]string)
+		var conn SourceProfileConnection
+		for _, shardConfig := range config.ShardedMySQLConfig.MySQLShardConfig {
+			if shardConfig.Primary {
+				paramsFromConfig["host"] = shardConfig.Host
+				paramsFromConfig["user"] = shardConfig.User
+				paramsFromConfig["dbName"] = shardConfig.DbName
+				paramsFromConfig["port"] = shardConfig.Port
+				paramsFromConfig["password"] = shardConfig.Password
+				conn, err = NewSourceProfileConnection(source, paramsFromConfig)
+			}
+		}
+		return SourceProfile{Ty: SourceProfileTypeConfig, Conn: conn, Config: config}, err
+
 	} else {
 		// Assume connection profile type connection by default, since
 		// connection parameters could be specified as part of environment
