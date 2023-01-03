@@ -53,6 +53,7 @@ func (isi InfoSchemaImpl) GetTableName(dbName string, tableName string) string {
 
 // GetRowsFromTable returns a sql Rows object for a table.
 func (isi InfoSchemaImpl) GetRowsFromTable(conv *internal.Conv, srcTable string) (interface{}, error) {
+	fmt.Println("source information: " + isi.SourceProfile.Conn.Mysql.Db)
 	srcSchema := conv.SrcSchema[srcTable]
 	srcCols := srcSchema.ColNames
 	if len(srcCols) == 0 {
@@ -408,6 +409,7 @@ func valsToStrings(vals []sql.RawBytes) []string {
 	var s []string
 	for _, v := range vals {
 		s = append(s, toString(v))
+		fmt.Println(toString(v))
 	}
 	return s
 }

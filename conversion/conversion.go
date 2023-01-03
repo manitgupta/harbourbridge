@@ -79,7 +79,32 @@ var (
 // The SourceProfile param provides the connection details to use the go SQL library.
 func SchemaConv(sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, ioHelper *utils.IOStreams) (*internal.Conv, error) {
 	switch sourceProfile.Driver {
-	case constants.POSTGRES, constants.MYSQL, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
+	case constants.MYSQL:
+		//the migration type can be sharded or normal.
+		if sourceProfile.Config.ConfigType != "shardedMySQL" {
+			//unsharded mySQL migration
+			return schemaFromDatabase(sourceProfile, targetProfile)
+		}
+		//sharded migration, create the conn object using the "primary" shard
+		paramFromConfig := make(map[string]string)
+		for _, shardConfig := range sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig {
+			if shardConfig.Primary {
+				paramFromConfig["host"] = shardConfig.Host
+				paramFromConfig["user"] = shardConfig.User
+				paramFromConfig["dbName"] = shardConfig.DbName
+				paramFromConfig["password"] = shardConfig.Password
+				paramFromConfig["port"] = shardConfig.Port
+				conn, err := profiles.NewSourceProfileConnection(sourceProfile.Driver, paramFromConfig)
+				if err != nil {
+					return nil, fmt.Errorf("error connecting to primary shard while performing schema migration")
+				}
+				shardSourceProfile := profiles.SourceProfile{Ty: profiles.SourceProfileTypeConnection, Conn: conn, Driver: sourceProfile.Driver}
+				fmt.Println("Trying for primary shard!!")
+				return schemaFromDatabase(shardSourceProfile, targetProfile)
+			}
+		}
+		return nil, fmt.Errorf("no primary shard found for connection")
+	case constants.POSTGRES, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
 		return schemaFromDatabase(sourceProfile, targetProfile)
 	case constants.PGDUMP, constants.MYSQLDUMP:
 		return schemaFromDump(sourceProfile.Driver, targetProfile.TargetDb, ioHelper)
@@ -98,7 +123,35 @@ func DataConv(ctx context.Context, sourceProfile profiles.SourceProfile, targetP
 		Verbose:    internal.Verbose(),
 	}
 	switch sourceProfile.Driver {
-	case constants.POSTGRES, constants.MYSQL, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
+	case constants.MYSQL:
+		//the migration type can be sharded or normal.
+		if sourceProfile.Config.ConfigType != "shardedMySQL" {
+			//unsharded mySQL migration
+			return dataFromDatabase(ctx, sourceProfile, targetProfile, config, conv, client)
+		}
+		paramFromConfig := make(map[string]string)
+		var bw *writer.BatchWriter
+		var err error
+		for shardCounter, shardConfig := range sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig {
+			paramFromConfig["host"] = shardConfig.Host
+			paramFromConfig["user"] = shardConfig.User
+			paramFromConfig["dbName"] = shardConfig.DbName
+			paramFromConfig["password"] = shardConfig.Password
+			paramFromConfig["port"] = shardConfig.Port
+			conn, err := profiles.NewSourceProfileConnection(sourceProfile.Driver, paramFromConfig)
+			if err != nil {
+				return nil, fmt.Errorf("error connecting to a shard while performing data migration")
+			}
+			shardSourceProfile := profiles.SourceProfile{Ty: profiles.SourceProfileTypeConnection, Conn: conn, Driver: sourceProfile.Driver}
+			fmt.Printf("Trying to migrate shard: %d\n", shardCounter)
+			bw, err = dataFromDatabase(ctx, shardSourceProfile, targetProfile, config, conv, client)
+			if err != nil {
+				return nil, fmt.Errorf("error while trying to perform data migration from a shard")
+			}
+		}
+		return bw, err
+
+	case constants.POSTGRES, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
 		return dataFromDatabase(ctx, sourceProfile, targetProfile, config, conv, client)
 	case constants.PGDUMP, constants.MYSQLDUMP:
 		if conv.SpSchema.CheckInterleaved() {
@@ -132,7 +185,6 @@ func connectionConfig(sourceProfile profiles.SourceProfile) (interface{}, error)
 		if !(mysqlConn.Host != "" && mysqlConn.User != "" && mysqlConn.Db != "") {
 			return profiles.GenerateMYSQLConnectionStr()
 		} else {
-			fmt.Println("Getting string!")
 			return profiles.GetSQLConnectionStr(sourceProfile), nil
 		}
 	// For Dynamodb, both legacy and new flows use env vars.
@@ -179,6 +231,7 @@ func schemaFromDatabase(sourceProfile profiles.SourceProfile, targetProfile prof
 func performSnapshotMigration(config writer.BatchWriterConfig, conv *internal.Conv, client *sp.Client, infoSchema common.InfoSchema) *writer.BatchWriter {
 	common.SetRowStats(conv, infoSchema)
 	totalRows := conv.Rows()
+	fmt.Printf("Total Rows: %d\n", totalRows)
 	if !conv.Audit.DryRun {
 		conv.Audit.Progress = *internal.NewProgress(totalRows, "Writing data to Spanner", internal.Verbose(), false, int(internal.DataWriteInProgress))
 	}
@@ -205,6 +258,7 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("Fetched infoschema!")
 	var streamInfo map[string]interface{}
 	if sourceProfile.Conn.Streaming {
 		streamInfo, err = infoSchema.StartChangeDataCapture(ctx, conv)
@@ -502,7 +556,7 @@ func ValidateDDL(ctx context.Context, adminClient *database.DatabaseAdminClient,
 }
 
 // CreatesOrUpdatesDatabase updates an existing Spanner database or creates a new one if one does not exist.
-	func CreateOrUpdateDatabase(ctx context.Context, adminClient *database.DatabaseAdminClient, dbURI, driver, targetDb string, conv *internal.Conv, out *os.File) error {
+func CreateOrUpdateDatabase(ctx context.Context, adminClient *database.DatabaseAdminClient, dbURI, driver, targetDb string, conv *internal.Conv, out *os.File) error {
 	dbExists, err := VerifyDb(ctx, adminClient, dbURI)
 	if err != nil {
 		return err
@@ -921,11 +975,13 @@ func GetInfoSchema(sourceProfile profiles.SourceProfile, targetProfile profiles.
 	driver := sourceProfile.Driver
 	switch driver {
 	case constants.MYSQL:
+		fmt.Println("Connection string: " + connectionConfig.(string))
 		db, err := sql.Open(driver, connectionConfig.(string))
 		dbName := getDbNameFromSQLConnectionStr(driver, connectionConfig.(string))
 		if err != nil {
 			return nil, err
 		}
+		fmt.Println("DBName: " + dbName)
 		return mysql.InfoSchemaImpl{
 			DbName:        dbName,
 			Db:            db,

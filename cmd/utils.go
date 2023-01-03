@@ -73,7 +73,6 @@ func PrepareMigrationPrerequisites(sourceProfileString, targetProfileString, sou
 	if err != nil {
 		return profiles.SourceProfile{}, targetProfile, utils.IOStreams{}, "", err
 	}
-
 	dumpFilePath := ""
 	if sourceProfile.Ty == profiles.SourceProfileTypeFile && (sourceProfile.File.Format == "" || sourceProfile.File.Format == "dump") {
 		dumpFilePath = sourceProfile.File.Path

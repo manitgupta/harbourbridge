@@ -172,6 +172,7 @@ func convInt64(val string) (int64, error) {
 	if err != nil {
 		return i, fmt.Errorf("can't convert to int64: %w", err)
 	}
+	fmt.Printf("INT64 converted val: %d\n", i)
 	return i, err
 }
 

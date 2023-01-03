@@ -116,6 +116,7 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		banner string
 		dbURI  string
 	)
+	fmt.Println("HEREEEEE")
 	conv, err = conversion.SchemaConv(sourceProfile, targetProfile, &ioHelper)
 	if err != nil {
 		panic(err)

@@ -127,6 +127,7 @@ func (bw *BatchWriter) AddRow(table string, cols []string, vals []interface{}) {
 func (bw *BatchWriter) Flush() {
 	for len(bw.rows) > 0 {
 		if atomic.LoadInt64(&bw.async.writes) < bw.writeLimit {
+			fmt.Printf("\nTotal Rows in bw: %d\n", len(bw.rows))
 			m, count, bytes := bw.getBatch()
 			if bw.verbose {
 				fmt.Printf("Starting write of %d rows to Spanner (%d bytes, %d mutations) [%d in progress]\n",

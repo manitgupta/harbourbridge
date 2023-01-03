@@ -36,6 +36,16 @@
             "args": [
                 "-webv2",
             ]
+        },
+        {
+            "name": "schema-and-data",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceRoot}/main.go",
+            "args": [
+                "schema-and-data -source=mysql --target-profile='instance=manit-testing' --source-profile='config=shardingConfig.cfg' --log-level=DEBUG",
+            ]
         }
     ]
 }

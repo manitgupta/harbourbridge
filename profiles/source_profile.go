@@ -589,25 +589,7 @@ func NewSourceProfile(s string, source string) (SourceProfile, error) {
 		return SourceProfile{Ty: SourceProfileTypeFile}, fmt.Errorf("file not specified, but format set to %v", format)
 	} else if file, ok := params["config"]; ok {
 		config, err := NewSourceProfileConfig(file)
-		if err != nil {
-			return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, err
-		}
-		// if config is valid, it must be a shardedMySQL configuration
-		// create a conn object using the "primary" shard
-		paramsFromConfig := make(map[string]string)
-		var conn SourceProfileConnection
-		for _, shardConfig := range config.ShardedMySQLConfig.MySQLShardConfig {
-			if shardConfig.Primary {
-				paramsFromConfig["host"] = shardConfig.Host
-				paramsFromConfig["user"] = shardConfig.User
-				paramsFromConfig["dbName"] = shardConfig.DbName
-				paramsFromConfig["port"] = shardConfig.Port
-				paramsFromConfig["password"] = shardConfig.Password
-				conn, err = NewSourceProfileConnection(source, paramsFromConfig)
-			}
-		}
-		return SourceProfile{Ty: SourceProfileTypeConfig, Conn: conn, Config: config}, err
-
+		return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, err
 	} else {
 		// Assume connection profile type connection by default, since
 		// connection parameters could be specified as part of environment

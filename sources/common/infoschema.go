@@ -115,6 +115,7 @@ func SetRowStats(conv *internal.Conv, infoSchema InfoSchema) {
 	for _, t := range tables {
 		tableName := infoSchema.GetTableName(t.Schema, t.Name)
 		count, err := infoSchema.GetRowCount(t)
+		fmt.Printf("Total rows are %d \n", count)
 		if err != nil {
 			conv.Unexpected(fmt.Sprintf("Couldn't get number of rows for table %s", tableName))
 			continue
