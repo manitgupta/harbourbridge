@@ -113,11 +113,13 @@ func SchemaConv(sourceProfile profiles.SourceProfile, targetProfile profiles.Tar
 	}
 }
 
-func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLShardConfig, ctx context.Context, driver string, targetProfile profiles.TargetProfile, client *sp.Client, conv *internal.Conv, config writer.BatchWriterConfig, bwChan chan *writer.BatchWriter) {
+func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLShardConfig, ctx context.Context, driver string, targetProfile profiles.TargetProfile, client *sp.Client, conv *internal.Conv, config writer.BatchWriterConfig, bwChan chan *writer.BatchWriter, wg *sync.WaitGroup) {
 	// NEED TO IMPLEMENT:
 	// 1. SHARD BATCHING LOGIC
 	// 2. GOROUTINE THREAD POOL
 	// 3. MERGING OUTPUT FROM SHARD-WISE BATCHWRITER INTO AN AGGREGATED BATCHWRITER OBJECT WHICH WILL BE USED TO UPDATE THE CONV OBJECT.
+	//call Done() after the shard goroutine finishes execution.
+	defer wg.Done()
 	paramFromConfig := make(map[string]string)
 	paramFromConfig["host"] = shardConfig.Host
 	paramFromConfig["user"] = shardConfig.User
@@ -132,9 +134,8 @@ func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLSh
 	shardSourceProfile := profiles.SourceProfile{Ty: profiles.SourceProfileTypeConnection, Conn: conn, Driver: driver}
 	fmt.Printf("Trying to migrate shard: %d\n", shardCounter)
 	bw, err := dataFromDatabase(ctx, shardSourceProfile, targetProfile, config, conv, client)
+	//send the created bw into the channel
 	bwChan <- bw
-	//closing the channel is important for exiting out of range loop in the receiver.
-	close(bwChan)
 	if err != nil {
 		fmt.Println("error while trying to perform data migration from a shard")
 		return
@@ -159,15 +160,30 @@ func DataConv(ctx context.Context, sourceProfile profiles.SourceProfile, targetP
 		}
 		//create a channel to receive the batchWriter object.
 		bwChan := make(chan *writer.BatchWriter)
-		for shardCounter, shardConfig := range sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig {
-			go InitiateShardedDataMigration(shardCounter, shardConfig, ctx, constants.MYSQL, targetProfile, client, conv, config, bwChan)
-		}
+		//A waitGroup is used to wait for the program to finish goroutines.
+		var wg sync.WaitGroup
 		//receive the batchWriter object from all the individual shards and compile it.
 		var bwFinal *writer.BatchWriter
+		//slice of the batchWriter corresponding to each shard.
+		// bw := make([]*writer.BatchWriter, len(sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig))
+		for shardCounter, shardConfig := range sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig {
+			//the main goroutine should wait for each shard goroutine to complete.
+			wg.Add(1)
+			//Start data migration of a shard in a new goroutine
+			go InitiateShardedDataMigration(shardCounter, shardConfig, ctx, constants.MYSQL, targetProfile, client, conv, config, bwChan, &wg)
+		}
+
+		go func() {
+			defer close(bwChan)
+			//wait for all the goroutines to finish before exiting.
+			wg.Wait()
+		}()
+
+		//IMPLEMENT LOGIC TO MERGE DATA THAT IS COMING FROM GOROUTINES INTO THE FINAL BATCHWRITER
 		for bw := range bwChan {
-			//IMPLEMENTATION TO MERGE SHARD-WISE batchWriter objects goes here!!!
 			bwFinal = bw
 		}
+
 		return bwFinal, nil
 
 	case constants.POSTGRES, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
