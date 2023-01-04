@@ -410,7 +410,6 @@ func valsToStrings(vals []sql.RawBytes) []string {
 	var s []string
 	for _, v := range vals {
 		s = append(s, toString(v))
-		fmt.Println(toString(v))
 	}
 	return s
 }

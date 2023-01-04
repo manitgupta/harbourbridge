@@ -113,6 +113,34 @@ func SchemaConv(sourceProfile profiles.SourceProfile, targetProfile profiles.Tar
 	}
 }
 
+func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLShardConfig, ctx context.Context, driver string, targetProfile profiles.TargetProfile, client *sp.Client, conv *internal.Conv, config writer.BatchWriterConfig, bwChan chan *writer.BatchWriter) {
+	// NEED TO IMPLEMENT:
+	// 1. SHARD BATCHING LOGIC
+	// 2. GOROUTINE THREAD POOL
+	// 3. MERGING OUTPUT FROM SHARD-WISE BATCHWRITER INTO AN AGGREGATED BATCHWRITER OBJECT WHICH WILL BE USED TO UPDATE THE CONV OBJECT.
+	paramFromConfig := make(map[string]string)
+	paramFromConfig["host"] = shardConfig.Host
+	paramFromConfig["user"] = shardConfig.User
+	paramFromConfig["dbName"] = shardConfig.DbName
+	paramFromConfig["password"] = shardConfig.Password
+	paramFromConfig["port"] = shardConfig.Port
+	conn, err := profiles.NewSourceProfileConnection(driver, paramFromConfig)
+	if err != nil {
+		fmt.Println("error connecting to a shard while performing data migration")
+		return
+	}
+	shardSourceProfile := profiles.SourceProfile{Ty: profiles.SourceProfileTypeConnection, Conn: conn, Driver: driver}
+	fmt.Printf("Trying to migrate shard: %d\n", shardCounter)
+	bw, err := dataFromDatabase(ctx, shardSourceProfile, targetProfile, config, conv, client)
+	bwChan <- bw
+	//closing the channel is important for exiting out of range loop in the receiver.
+	close(bwChan)
+	if err != nil {
+		fmt.Println("error while trying to perform data migration from a shard")
+		return
+	}
+}
+
 // DataConv performs the data conversion
 // The SourceProfile param provides the connection details to use the go SQL library.
 func DataConv(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, ioHelper *utils.IOStreams, client *sp.Client, conv *internal.Conv, dataOnly bool, writeLimit int64) (*writer.BatchWriter, error) {
@@ -129,27 +157,18 @@ func DataConv(ctx context.Context, sourceProfile profiles.SourceProfile, targetP
 			//unsharded mySQL migration
 			return dataFromDatabase(ctx, sourceProfile, targetProfile, config, conv, client)
 		}
-		paramFromConfig := make(map[string]string)
-		var bw *writer.BatchWriter
-		var err error
+		//create a channel to receive the batchWriter object.
+		bwChan := make(chan *writer.BatchWriter)
 		for shardCounter, shardConfig := range sourceProfile.Config.ShardedMySQLConfig.MySQLShardConfig {
-			paramFromConfig["host"] = shardConfig.Host
-			paramFromConfig["user"] = shardConfig.User
-			paramFromConfig["dbName"] = shardConfig.DbName
-			paramFromConfig["password"] = shardConfig.Password
-			paramFromConfig["port"] = shardConfig.Port
-			conn, err := profiles.NewSourceProfileConnection(sourceProfile.Driver, paramFromConfig)
-			if err != nil {
-				return nil, fmt.Errorf("error connecting to a shard while performing data migration")
-			}
-			shardSourceProfile := profiles.SourceProfile{Ty: profiles.SourceProfileTypeConnection, Conn: conn, Driver: sourceProfile.Driver}
-			fmt.Printf("Trying to migrate shard: %d\n", shardCounter)
-			bw, err = dataFromDatabase(ctx, shardSourceProfile, targetProfile, config, conv, client)
-			if err != nil {
-				return nil, fmt.Errorf("error while trying to perform data migration from a shard")
-			}
+			go InitiateShardedDataMigration(shardCounter, shardConfig, ctx, constants.MYSQL, targetProfile, client, conv, config, bwChan)
 		}
-		return bw, err
+		//receive the batchWriter object from all the individual shards and compile it.
+		var bwFinal *writer.BatchWriter
+		for bw := range bwChan {
+			//IMPLEMENTATION TO MERGE SHARD-WISE batchWriter objects goes here!!!
+			bwFinal = bw
+		}
+		return bwFinal, nil
 
 	case constants.POSTGRES, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:
 		return dataFromDatabase(ctx, sourceProfile, targetProfile, config, conv, client)
