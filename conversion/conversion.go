@@ -126,6 +126,16 @@ func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLSh
 	paramFromConfig["dbName"] = shardConfig.DbName
 	paramFromConfig["password"] = shardConfig.Password
 	paramFromConfig["port"] = shardConfig.Port
+	if shardConfig.IsStream {
+		streamingCfgJSON, err := json.Marshal(shardConfig.StreamingCfg)
+		if err != nil {
+			fmt.Println("error while trying to marshal streaming json")
+			return
+		}
+		fmt.Println("Sharded streaming!")
+		fmt.Println(string(streamingCfgJSON))
+		paramFromConfig["streamingCfg"] = string(streamingCfgJSON)
+	}
 	conn, err := profiles.NewSourceProfileConnection(driver, paramFromConfig)
 	if err != nil {
 		fmt.Println("error connecting to a shard while performing data migration")
@@ -183,7 +193,9 @@ func DataConv(ctx context.Context, sourceProfile profiles.SourceProfile, targetP
 		for bw := range bwChan {
 			bwFinal = bw
 		}
-
+		if (bwFinal == nil) {
+			bwFinal = &writer.BatchWriter{}
+		}
 		return bwFinal, nil
 
 	case constants.POSTGRES, constants.DYNAMODB, constants.SQLSERVER, constants.ORACLE:

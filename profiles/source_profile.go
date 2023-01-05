@@ -431,6 +431,29 @@ func NewSourceProfileConnection(source string, params map[string]string) (Source
 	return conn, nil
 }
 
+type DataflowCfg struct {
+	JobName  string `json:"JobName"`
+	Location string `json:"Location"`
+}
+type ConnectionConfig struct {
+	Name     string `json:"name"`
+	Location string `json:"location"`
+}
+type DatastreamCfg struct {
+	StreamId               string           `json:"streamId"`
+	StreamLocation         string           `json:"streamLocation"`
+	StreamDisplayName      string           `json:"streamDisplayName"`
+	SourceConnectionConfig ConnectionConfig `json:"sourceConnectionConfig"`
+	TargetConnectionConfig ConnectionConfig `json:"destinationConnectionConfig"`
+	Properties             string           `json:properties`
+}
+
+type StreamingCfg struct {
+	DatastreamCfg DatastreamCfg `json:"datastreamCfg"`
+	DataflowCfg   DataflowCfg   `json:"dataflowCfg"`
+	TmpDir        string        `json:"tmpDir"`
+}
+
 type MySQLShardConfig struct {
 	Primary  bool
 	Host     string
@@ -438,6 +461,8 @@ type MySQLShardConfig struct {
 	Password string
 	Port     string
 	DbName   string
+	IsStream bool
+	StreamingCfg StreamingCfg
 }
 
 type ShardedMySQLConfig struct {
