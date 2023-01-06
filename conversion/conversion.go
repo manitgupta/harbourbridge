@@ -126,16 +126,7 @@ func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLSh
 	paramFromConfig["dbName"] = shardConfig.DbName
 	paramFromConfig["password"] = shardConfig.Password
 	paramFromConfig["port"] = shardConfig.Port
-	if shardConfig.IsStream {
-		streamingCfgJSON, err := json.Marshal(shardConfig.StreamingCfg)
-		if err != nil {
-			fmt.Println("error while trying to marshal streaming json")
-			return
-		}
-		fmt.Println("Sharded streaming!")
-		fmt.Println(string(streamingCfgJSON))
-		paramFromConfig["streamingCfg"] = string(streamingCfgJSON)
-	}
+	paramFromConfig["streamingCfg"] = shardConfig.StreamingCfg
 	conn, err := profiles.NewSourceProfileConnection(driver, paramFromConfig)
 	if err != nil {
 		fmt.Println("error connecting to a shard while performing data migration")
@@ -147,7 +138,7 @@ func InitiateShardedDataMigration(shardCounter int, shardConfig profiles.MySQLSh
 	//send the created bw into the channel
 	bwChan <- bw
 	if err != nil {
-		fmt.Println("error while trying to perform data migration from a shard")
+		fmt.Println("error while trying to perform data migration from a shard", err)
 		return
 	}
 }
