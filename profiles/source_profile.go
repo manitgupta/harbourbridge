@@ -15,7 +15,9 @@
 package profiles
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -429,12 +431,63 @@ func NewSourceProfileConnection(source string, params map[string]string) (Source
 	return conn, nil
 }
 
-type SourceProfileConfig struct {
-	path string
+type DirectConnectionConfig struct {
+	Host     string `json:"host"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Port     string `json:"port"`
+	DbName   string `json:"dbName"`
 }
 
-func NewSourceProfileConfig(path string) SourceProfileConfig {
-	return SourceProfileConfig{path: path}
+type DmsConfig struct {
+	Undefined string
+}
+
+type DataStreamConfig struct {
+	Name     string `json:"name"`
+	Location string `json:"location"`
+}
+
+type DataflowConfig struct {
+	Location      string `json:"location"`
+	Network       string `json:"network"`
+	Subnetwork    string `json:"subnetwork"`
+	HostProjectId string `json:"hostProjectId"`
+}
+
+type StreamingConfig struct {
+	SrcDataStreamConfig  DataStreamConfig `json:"srcDataStreamConfig"`
+	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
+	DataflowConfig       DataflowConfig `json:"dataflowConfig"`
+}
+
+type ShardConfiguration struct {
+	DirectConnectionConfig DirectConnectionConfig `json:"directConnectionConfig"`
+	StreamingConfig        StreamingConfig `json:"streamingConfig"`
+	DmsConfig              DmsConfig `json:"dmsConfig"`
+}
+
+type SourceProfileConfig struct {
+	PrimaryShardName      string `json:"primaryShardName"`
+	ConfigType            string `json:"configType"`
+	ShardConfigurationMap map[string]ShardConfiguration `json:"shardConfigurationMap"`
+}
+
+func NewSourceProfileConfig(source string, path string) (SourceProfileConfig, error) {
+	//given the source, the fact that this 'config=', determine the appropiate object to marshal into
+	if source == constants.MYSQL {
+		//load the JSON configuration into file
+		configFile, err := ioutil.ReadFile(path)
+		if err != nil {
+			return SourceProfileConfig{}, fmt.Errorf("cannot read config file due to: %v", err)
+		}
+		sourceProfileConfig := SourceProfileConfig{}
+		//unmarshal the JSON into object
+		err = json.Unmarshal(configFile, &sourceProfileConfig)
+		return sourceProfileConfig, err
+	} else {
+		return SourceProfileConfig{}, fmt.Errorf("sharded migrations are currrently only supported for MySQL databases")
+	}
 }
 
 type SourceProfileCsv struct {
@@ -510,7 +563,14 @@ func (src SourceProfile) ToLegacyDriver(source string) (string, error) {
 			}
 		}
 	case SourceProfileTypeConfig:
-		return "", fmt.Errorf("specifying source-profile using config not implemented")
+		{
+			switch strings.ToLower(source) {
+			case "mysql":
+				return constants.MYSQL, nil
+			default:
+				return "", fmt.Errorf("specifying source-profile using config for non-mysql databases not implemented")
+			}
+		}
 	case SourceProfileTypeCsv:
 		return constants.CSV, nil
 	default:
@@ -553,8 +613,8 @@ func NewSourceProfile(s string, source string) (SourceProfile, error) {
 		// File is not passed in from stdin or specified using "file" flag.
 		return SourceProfile{Ty: SourceProfileTypeFile}, fmt.Errorf("file not specified, but format set to %v", format)
 	} else if file, ok := params["config"]; ok {
-		config := NewSourceProfileConfig(file)
-		return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, fmt.Errorf("source-profile type config not yet implemented")
+		config, err := NewSourceProfileConfig(strings.ToLower(source), file)
+		return SourceProfile{Ty: SourceProfileTypeConfig, Config: config}, err
 	} else {
 		// Assume connection profile type connection by default, since
 		// connection parameters could be specified as part of environment
@@ -565,7 +625,8 @@ func NewSourceProfile(s string, source string) (SourceProfile, error) {
 }
 
 var filePipedToStdin = func() bool {
-	stat, _ := os.Stdin.Stat()
-	// Data is being piped to stdin, if true. Else, stdin is from a terminal.
-	return (stat.Mode() & os.ModeCharDevice) == 0
+	// stat, _ := os.Stdin.Stat()
+	// // Data is being piped to stdin, if true. Else, stdin is from a terminal.
+	// return (stat.Mode() & os.ModeCharDevice) == 0
+	return false
 }

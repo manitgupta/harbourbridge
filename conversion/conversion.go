@@ -134,6 +134,7 @@ func connectionConfig(sourceProfile profiles.SourceProfile) (interface{}, error)
 		} else {
 			return profiles.GetSQLConnectionStr(sourceProfile), nil
 		}
+
 	// For Dynamodb, both legacy and new flows use env vars.
 	case constants.DYNAMODB:
 		return getDynamoDBClientConfig()
@@ -168,9 +169,48 @@ func getDbNameFromSQLConnectionStr(driver, sqlConnectionStr string) string {
 func schemaFromDatabase(sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile) (*internal.Conv, error) {
 	conv := internal.MakeConv()
 	conv.TargetDb = targetProfile.TargetDb
-	infoSchema, err := GetInfoSchema(sourceProfile, targetProfile)
-	if err != nil {
-		return conv, err
+	//handle fetching schema differently for sharded migrations, we only connect to the primary shard
+	var infoSchema common.InfoSchema
+	var err error
+	if sourceProfile.Ty == profiles.SourceProfileTypeConfig {
+		//Find Primary Shard Name
+		primaryShardName := sourceProfile.Config.PrimaryShardName
+		primaryShardFound := false
+		//Loop over the shards to find the primary
+		shardsList := sourceProfile.Config.ShardConfigurationMap
+		for shardId, shardConfig := range shardsList {
+			if shardId == primaryShardName {
+				primaryShardFound = true
+				params := make(map[string]string)
+				params["host"] = shardConfig.DirectConnectionConfig.Host
+				params["user"] = shardConfig.DirectConnectionConfig.User
+				params["dbName"] = shardConfig.DirectConnectionConfig.DbName
+				params["port"] = shardConfig.DirectConnectionConfig.Port
+				params["password"] = shardConfig.DirectConnectionConfig.Password
+				sourceProfileConnectionMySQL, err := profiles.NewSourceProfileConnectionMySQL(params)
+				if err != nil {
+					return nil, fmt.Errorf("cannot parse connection configuration for the primary shard")
+				}
+				sourceProfileConnection := profiles.SourceProfileConnection{Mysql: sourceProfileConnectionMySQL, Ty: profiles.SourceProfileConnectionTypeMySQL}
+				//create a source profile which contains the sourceProfileConnection object for the primary shard
+				//this is done because GetSQLConnectionStr() should not be aware of sharding
+				newSourceProfile := profiles.SourceProfile{Conn: sourceProfileConnection, Ty: profiles.SourceProfileTypeConnection}
+				newSourceProfile.Driver = sourceProfile.Driver
+				infoSchema, err = GetInfoSchema(newSourceProfile, targetProfile)
+				if err != nil {
+					return conv, err
+				}
+				break
+			}
+		}
+		if (!primaryShardFound) {
+			return nil, fmt.Errorf("cannot find the primary shard defined, please validate that the primary name matches exactly one shard")				
+		}
+	} else {
+		infoSchema, err = GetInfoSchema(sourceProfile, targetProfile)
+		if err != nil {
+			return conv, err
+		}
 	}
 	return conv, common.ProcessSchema(conv, infoSchema, common.DefaultWorkers)
 }
