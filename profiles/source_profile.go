@@ -454,7 +454,10 @@ type DataflowConfig struct {
 type PhysicalShard struct {
 	PhysicalShardId string `json:"physicalShardId"`
 	SrcDataStreamConfig  DataStreamConfig `json:"srcDataStreamConfig"`
+	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
 	DataflowConfig       DataflowConfig   `json:"dataflowConfig"`
+	TmpDir	string `json:"tmpDir"`
+	StreamLocation string `json:"streamLocation"`
 }
 
 type LogicalShard struct {
@@ -467,7 +470,6 @@ type ShardConfigurationDataflow struct {
 	SchemaShard DirectConnectionConfig `json:"schemaShard"`
 	PhysicalShards map[string]PhysicalShard `json:"physicalShards"`
 	LogicalShards map[string]LogicalShard `json:"logicalShards"`
-	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
 }
 
 type ShardConfigurationBulk struct {

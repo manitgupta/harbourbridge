@@ -61,6 +61,7 @@ import (
 	"github.com/cloudspannerecosystem/harbourbridge/sources/sqlserver"
 	"github.com/cloudspannerecosystem/harbourbridge/spanner/ddl"
 	"github.com/cloudspannerecosystem/harbourbridge/spanner/writer"
+	"github.com/cloudspannerecosystem/harbourbridge/streaming"
 	"go.uber.org/zap"
 	adminpb "google.golang.org/genproto/googleapis/spanner/admin/database/v1"
 	"google.golang.org/grpc/metadata"
@@ -286,22 +287,66 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			//finally, once all shard migrations are complete, return the batch writer object
 			return bw, nil
 		} else if sourceProfile.Config.ConfigType == "dataflow" {
-			//for streaming migrations, we want to do a couple of things -
-			//1. We want to batch datastreams belonging to the same physical shards together. So given the connection profiles in input
-			//we process them to determine the batching candidates. We group shards from a physical shard together, in a new object.
-			//2. Next, we use the grouped batches to create datastreams for each. We further have two options here - we can create the
-			//datastreams sequentially or in parallel. Since creating datastreams take a lot of time, we will create them in parallel
-			//via a worker pool. Each worker from the pool will a create a datastream and wait for its status to switch to RUNNING.
-			//3. Once done we will then create Dataflow jobs for each of the Datastreams created. Will involves creating the GCS bucket etc
-			//and starting the Dataflow job. Here again we have two options, serial or parallel. We can apply the same concept and do it in
-			//parallel.
-			//STEP - 1 - Create batched objects - SKIP for now.
-			//Algo for it is -
-			//a. Given the config read, fetch the connection profile
-			//b. It will contain all the details, use the information to create the batches.
-			//STEP - 2 Create datastreams, right now lets create it for each shard
+			//STEP - 1 - Create batch for each physical shard
+			fmt.Printf("%+v\n", sourceProfile.Config.ShardConfigurationDataflow)
+			physicalToLogicalShardMap := make(map[string]*streaming.PhysicalShard)
+			for _, physicalShard := range sourceProfile.Config.ShardConfigurationDataflow.PhysicalShards {
+				internalPhysicalShard := streaming.PhysicalShard{}
+				internalPhysicalShard.PhysicalShardId = physicalShard.PhysicalShardId
+				internalPhysicalShard.SrcDataStreamConfig = physicalShard.SrcDataStreamConfig
+				internalPhysicalShard.DestDataStreamConfig = physicalShard.DestDataStreamConfig
+				internalPhysicalShard.DataflowConfig = physicalShard.DataflowConfig
+				internalPhysicalShard.TmpDir = physicalShard.TmpDir
+				internalPhysicalShard.LogicalShards = []profiles.LogicalShard{}
+				internalPhysicalShard.StreamLocation = physicalShard.StreamLocation
+				physicalToLogicalShardMap[physicalShard.PhysicalShardId] = &internalPhysicalShard
 
-			return nil, nil
+			}
+			fmt.Printf("%+v\n", physicalToLogicalShardMap)
+			//Batch logical shards and add to the phyiscal shard.
+			for _, logicalShard := range sourceProfile.Config.ShardConfigurationDataflow.LogicalShards {
+				physicalShard, ok := physicalToLogicalShardMap[logicalShard.RefPhysicalShardId]
+				if ok {
+					fmt.Println("Appending logical shard to physical shard")
+					fmt.Printf("%+v\n\n", physicalShard)
+					fmt.Printf("%+v\n\n", logicalShard)
+					physicalShard.LogicalShards = append(physicalShard.LogicalShards, logicalShard)
+				} else {
+					return nil, fmt.Errorf("referenced physical shard not found, please check the configuration")
+				}
+			}
+			fmt.Printf("%+v", physicalToLogicalShardMap)
+			// STEP - 2 - Create datastream and dataflow for each physical shard
+			for _, physicalShard := range physicalToLogicalShardMap {
+				//create streaming cfg from the config source type.
+				streamingCfg := physicalShard.CreateStreamingConfig(ctx)
+
+				fmt.Println("Previous streamingCfg")
+				fmt.Printf("%+v\n\n\n", streamingCfg)
+				//update the cfg with the HB defaults
+				err := streaming.VerifyAndUpdateCfg(&streamingCfg, targetProfile.Conn.Sp.Dbname)
+				if err != nil {
+					return nil, fmt.Errorf("error updating the streamingCfg with defaults: %v", err)
+				}
+				//collect logical dbs, TODO: Add support for individual table migrations
+				fmt.Println("Updated streamingCfg")
+				fmt.Printf("%+v\n\n\n", streamingCfg)
+				var logicalDbs []string
+				for _, logicalShard := range physicalShard.LogicalShards {
+					logicalDbs = append(logicalDbs, logicalShard.DbName)
+				}
+				fmt.Println("LogicalDbs List:")
+				fmt.Println(logicalDbs)
+				//launch the stream for the physical shard
+				streaming.LaunchStream(ctx, sourceProfile.Driver, logicalDbs, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+				//perform streaming migration via dataflow
+				err = streaming.StartDataflow(ctx, targetProfile, streamingCfg, conv)
+				if err != nil {
+					err = fmt.Errorf("error starting dataflow: %v", err)
+					return nil, err
+				}
+			}
+			return &writer.BatchWriter{}, nil
 		} else if sourceProfile.Config.ConfigType == "dms" {
 			return nil, fmt.Errorf("dms configType is not implemented yet, please use one of 'bulk' or 'dataflow'")
 		} else {

@@ -33,7 +33,7 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceRoot}/main.go",
-            "args": ["schema-and-data", "-source=mysql", "--target-profile=project=span-cloud-testing,instance=manit-testing,dbName=hello_test", "--source-profile=config=shardedConfig.cfg","--log-level=DEBUG"
+            "args": ["schema-and-data", "-source=mysql", "--target-profile=project=span-cloud-testing,instance=manit-testing,dbName=minimal11", "--source-profile=config=shardedDataflow.cfg","--log-level=DEBUG"
             ]
         }
     ]

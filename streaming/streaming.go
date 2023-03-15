@@ -59,11 +59,11 @@ type DatastreamCfg struct {
 }
 
 type DataflowCfg struct {
-	JobName  string
-	Location string
+	JobName       string
+	Location      string
 	HostProjectId string
-	Network string
-	Subnetwork string
+	Network       string
+	Subnetwork    string
 }
 
 type StreamingCfg struct {
@@ -159,12 +159,18 @@ func ReadStreamingConfig(file, dbName string) (StreamingCfg, error) {
 	return streamingCfg, nil
 }
 
-func getMysqlSourceStreamConfig(dbName string) *datastreampb.SourceConfig_MysqlSourceConfig {
-	mydb := &datastreampb.MysqlDatabase{
-		Database: dbName,
+func getMysqlSourceStreamConfig(dbList []string) *datastreampb.SourceConfig_MysqlSourceConfig {
+	mydbList := []*datastreampb.MysqlDatabase{}
+	for _, dbName := range dbList {
+		mydb := &datastreampb.MysqlDatabase{
+			Database: dbName,
+		}
+		mydbList = append(mydbList, mydb)
 	}
+	fmt.Println("Input dbList")
+	fmt.Println(dbList)
 	mysqlSrcCfg := &datastreampb.MysqlSourceConfig{
-		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: []*datastreampb.MysqlDatabase{mydb}},
+		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: mydbList},
 	}
 	return &datastreampb.SourceConfig_MysqlSourceConfig{MysqlSourceConfig: mysqlSrcCfg}
 }
@@ -203,14 +209,14 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 	return &datastreampb.SourceConfig_PostgresqlSourceConfig{PostgresqlSourceConfig: postgresSrcCfg}, nil
 }
 
-func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, sourceProfile profiles.SourceProfile, datastreamCfg DatastreamCfg) error {
-	switch sourceProfile.Driver {
+func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbList []string, datastreamCfg DatastreamCfg) error {
+	switch driver {
 	case constants.MYSQL:
-		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(sourceProfile.Conn.Mysql.Db)
+		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(dbList)
 		return nil
 	case constants.ORACLE:
 		// For Oracle, the User name denotes the name of the schema while the dbName parameter has the SID.
-		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(sourceProfile.Conn.Oracle.User)
+		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(dbList[0])
 		return nil
 	case constants.POSTGRES:
 		sourceStreamConfig, err := getPostgreSQLSourceStreamConfig(datastreamCfg.Properties)
@@ -224,7 +230,7 @@ func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, sourceProfile prof
 }
 
 // LaunchStream populates the parameters from the streaming config and triggers a stream on Cloud Datastream.
-func LaunchStream(ctx context.Context, sourceProfile profiles.SourceProfile, projectID string, datastreamCfg DatastreamCfg) error {
+func LaunchStream(ctx context.Context, driver string, dbList []string, projectID string, datastreamCfg DatastreamCfg) error {
 	fmt.Println("Launching stream ", fmt.Sprintf("projects/%s/locations/%s", projectID, datastreamCfg.StreamLocation))
 	dsClient, err := datastream.NewClient(ctx)
 	if err != nil {
@@ -240,7 +246,7 @@ func LaunchStream(ctx context.Context, sourceProfile profiles.SourceProfile, pro
 	srcCfg := &datastreampb.SourceConfig{
 		SourceConnectionProfile: fmt.Sprintf("projects/%s/locations/%s/connectionProfiles/%s", projectID, datastreamCfg.SourceConnectionConfig.Location, datastreamCfg.SourceConnectionConfig.Name),
 	}
-	err = getSourceStreamConfig(srcCfg, sourceProfile, datastreamCfg)
+	err = getSourceStreamConfig(srcCfg, driver, dbList, datastreamCfg)
 	if err != nil {
 		return fmt.Errorf("could not get source stream config: %v", err)
 	}
@@ -382,7 +388,7 @@ func LaunchDataflowJob(ctx context.Context, targetProfile profiles.TargetProfile
 			dataflowSubnetwork = fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/regions/%s/subnetworks/%s", dataflowHostProjectId, dataflowCfg.Location, dataflowCfg.Subnetwork)
 		}
 	}
-	
+
 	launchParameters := createLaunchParameters(dataflowCfg, inputFilePattern, project, datastreamCfg, instance, dbName, streamingCfg, dataflowSubnetwork)
 
 	req := &dataflowpb.LaunchFlexTemplateRequest{
@@ -446,20 +452,72 @@ func getStreamingConfig(sourceProfile profiles.SourceProfile, targetProfile prof
 	}
 }
 
+type PhysicalShard struct {
+	PhysicalShardId      string
+	SrcDataStreamConfig  profiles.DataStreamConfig
+	DestDataStreamConfig profiles.DataStreamConfig
+	DataflowConfig       profiles.DataflowConfig
+	LogicalShards        []profiles.LogicalShard
+	TmpDir               string
+	StreamLocation       string
+}
+
+func (pl PhysicalShard) CreateStreamingConfig(ctx context.Context) StreamingCfg {
+	//create dataflowcfg from pl receiver object
+	dataflowCfg := DataflowCfg{}
+	inputDataflowConfig := pl.DataflowConfig
+	dataflowCfg.Location = inputDataflowConfig.Location
+	dataflowCfg.Network = inputDataflowConfig.Network
+	dataflowCfg.HostProjectId = inputDataflowConfig.HostProjectId
+	dataflowCfg.Subnetwork = inputDataflowConfig.Subnetwork
+	//create src and dst datastream from pl receiver object
+	datastreamCfg := DatastreamCfg{}
+	//set stream config
+	datastreamCfg.StreamLocation = pl.StreamLocation
+	//set src connection profile
+	inputSrcDatastreamConfig := pl.SrcDataStreamConfig
+	srcConnCfg := SrcConnCfg{}
+	srcConnCfg.Location = inputSrcDatastreamConfig.Location
+	srcConnCfg.Name = inputSrcDatastreamConfig.Name
+	datastreamCfg.SourceConnectionConfig = srcConnCfg
+	//set dst connection profile
+	dstConnCfg := DstConnCfg{}
+	inputDstDatastreamConfig := pl.DestDataStreamConfig
+	dstConnCfg.Name = inputDstDatastreamConfig.Name
+	dstConnCfg.Location = inputDstDatastreamConfig.Location
+	datastreamCfg.DestinationConnectionConfig = dstConnCfg
+	//create the streamingCfg object
+	streamingCfg := StreamingCfg{}
+	streamingCfg.DataflowCfg = dataflowCfg
+	streamingCfg.DatastreamCfg = datastreamCfg
+	//set the Temp GCS dir
+	streamingCfg.TmpDir = pl.TmpDir
+	return streamingCfg
+}
+
 func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile) (StreamingCfg, error) {
 	streamingCfg, err := getStreamingConfig(sourceProfile, targetProfile)
 	if err != nil {
 		return streamingCfg, fmt.Errorf("error reading streaming config: %v", err)
 	}
-
-	err = LaunchStream(ctx, sourceProfile, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+	driver := sourceProfile.Driver
+	var dbList []string
+	switch driver {
+	case constants.MYSQL:
+		dbList = append(dbList, sourceProfile.Conn.Mysql.Db)
+	case constants.ORACLE:
+		dbList = append(dbList, sourceProfile.Conn.Oracle.User)
+	case constants.POSTGRES:
+		dbList = append(dbList, streamingCfg.DatastreamCfg.Properties)
+	}
+	err = LaunchStream(ctx, driver, dbList, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
 	if err != nil {
 		return streamingCfg, fmt.Errorf("error launching stream: %v", err)
 	}
 	return streamingCfg, nil
 }
 
-func StartDataflow(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, streamingCfg StreamingCfg, conv *internal.Conv) error {
+func StartDataflow(ctx context.Context, targetProfile profiles.TargetProfile, streamingCfg StreamingCfg, conv *internal.Conv) error {
 
 	convJSON, err := json.MarshalIndent(conv, "", " ")
 	if err != nil {
