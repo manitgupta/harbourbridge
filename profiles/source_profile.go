@@ -439,10 +439,6 @@ type DirectConnectionConfig struct {
 	DbName   string `json:"dbName"`
 }
 
-type DmsConfig struct {
-	Undefined string
-}
-
 type DataStreamConfig struct {
 	Name     string `json:"name"`
 	Location string `json:"location"`
@@ -455,22 +451,38 @@ type DataflowConfig struct {
 	HostProjectId string `json:"hostProjectId"`
 }
 
-type StreamingConfig struct {
+type PhysicalShard struct {
+	PhysicalShardId string `json:"physicalShardId"`
 	SrcDataStreamConfig  DataStreamConfig `json:"srcDataStreamConfig"`
-	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
-	DataflowConfig       DataflowConfig `json:"dataflowConfig"`
+	DataflowConfig       DataflowConfig   `json:"dataflowConfig"`
 }
 
-type ShardConfiguration struct {
-	DirectConnectionConfig DirectConnectionConfig `json:"directConnectionConfig"`
-	StreamingConfig        StreamingConfig `json:"streamingConfig"`
-	DmsConfig              DmsConfig `json:"dmsConfig"`
+type LogicalShard struct {
+	DbName string `json:"dbName"`
+	LogicalShardId string `json:"logicalShardId"`
+	RefPhysicalShardId string `json:"refPhysicalShardId"`
+}
+
+type ShardConfigurationDataflow struct {
+	SchemaShard DirectConnectionConfig `json:"schemaShard"`
+	PhysicalShards map[string]PhysicalShard `json:"physicalShards"`
+	LogicalShards map[string]LogicalShard `json:"logicalShards"`
+	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
+}
+
+type ShardConfigurationBulk struct {
+	SchemaShard DirectConnectionConfig `json:"schemaShard"`
+	OtherShards []DirectConnectionConfig `json:"otherShards"`
+}
+
+type ShardConfigurationDMS struct {
 }
 
 type SourceProfileConfig struct {
-	PrimaryShardName      string `json:"primaryShardName"`
-	ConfigType            string `json:"configType"`
-	ShardConfigurationMap map[string]ShardConfiguration `json:"shardConfigurationMap"`
+	ConfigType                string                        `json:"configType"`
+	ShardConfigurationBulk ShardConfigurationBulk `json:"shardConfigurationBulk"`
+	ShardConfigurationDataflow ShardConfigurationDataflow `json:"shardConfigurationDataflow"`
+	ShardConfigurationDMS ShardConfigurationDMS `json:"shardConfigurationDMS"`
 }
 
 func NewSourceProfileConfig(source string, path string) (SourceProfileConfig, error) {
