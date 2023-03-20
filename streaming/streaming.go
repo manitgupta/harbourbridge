@@ -462,7 +462,7 @@ type PhysicalShard struct {
 	StreamLocation       string
 }
 
-func (pl PhysicalShard) CreateStreamingConfig(ctx context.Context) StreamingCfg {
+func CreateStreamingConfig(pl PhysicalShard) StreamingCfg {
 	//create dataflowcfg from pl receiver object
 	dataflowCfg := DataflowCfg{}
 	inputDataflowConfig := pl.DataflowConfig

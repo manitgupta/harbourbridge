@@ -316,23 +316,27 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 				}
 			}
 			fmt.Printf("%+v", physicalToLogicalShardMap)
-			// STEP - 2 - Create datastream and dataflow for each physical shard
-			for _, physicalShard := range physicalToLogicalShardMap {
-				//create streaming cfg from the config source type.
-				streamingCfg := physicalShard.CreateStreamingConfig(ctx)
 
+			physicalShardsList := []*streaming.PhysicalShard{}
+			for _, phS := range physicalToLogicalShardMap {
+				physicalShardsList = append(physicalShardsList, phS)
+			}
+
+			asyncProcessShards := func(p *streaming.PhysicalShard, mutex *sync.Mutex) common.TaskResult[*streaming.PhysicalShard] {
+				//create streaming cfg from the config source type.
+				streamingCfg := streaming.CreateStreamingConfig(*p)
 				fmt.Println("Previous streamingCfg")
 				fmt.Printf("%+v\n\n\n", streamingCfg)
 				//update the cfg with the HB defaults
 				err := streaming.VerifyAndUpdateCfg(&streamingCfg, targetProfile.Conn.Sp.Dbname)
 				if err != nil {
-					return nil, fmt.Errorf("error updating the streamingCfg with defaults: %v", err)
+					return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
 				}
 				//collect logical dbs, TODO: Add support for individual table migrations
 				fmt.Println("Updated streamingCfg")
 				fmt.Printf("%+v\n\n\n", streamingCfg)
 				var logicalDbs []string
-				for _, logicalShard := range physicalShard.LogicalShards {
+				for _, logicalShard := range p.LogicalShards {
 					logicalDbs = append(logicalDbs, logicalShard.DbName)
 				}
 				fmt.Println("LogicalDbs List:")
@@ -341,10 +345,11 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 				streaming.LaunchStream(ctx, sourceProfile.Driver, logicalDbs, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
 				//perform streaming migration via dataflow
 				err = streaming.StartDataflow(ctx, targetProfile, streamingCfg, conv)
-				if err != nil {
-					err = fmt.Errorf("error starting dataflow: %v", err)
-					return nil, err
-				}
+				return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
+			}
+			_, err := common.RunParallelTasks(physicalShardsList, 5, asyncProcessShards, true)
+			if err != nil {
+				return nil, fmt.Errorf("unable to start minimal downtime migrations: %v", err)
 			}
 			return &writer.BatchWriter{}, nil
 		} else if sourceProfile.Config.ConfigType == "dms" {
