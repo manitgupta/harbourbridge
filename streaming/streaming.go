@@ -159,18 +159,49 @@ func ReadStreamingConfig(file, dbName string) (StreamingCfg, error) {
 	return streamingCfg, nil
 }
 
-func getMysqlSourceStreamConfig(dbList []string) *datastreampb.SourceConfig_MysqlSourceConfig {
-	mydbList := []*datastreampb.MysqlDatabase{}
-	for _, dbName := range dbList {
-		mydb := &datastreampb.MysqlDatabase{
-			Database: dbName,
+func getMysqlSourceStreamConfig(dbList []StreamedDatabase) *datastreampb.SourceConfig_MysqlSourceConfig {
+	excludeDbList := []*datastreampb.MysqlDatabase{}
+	includeDbList := []*datastreampb.MysqlDatabase{}
+	for _, db := range dbList {
+		//collect table List
+		includeTableList := []*datastreampb.MysqlTable{}
+		for _, table := range db.TableInclude {
+			includeTable := &datastreampb.MysqlTable{
+				Table: table,
+			}
+			includeTableList = append(includeTableList, includeTable)
 		}
-		mydbList = append(mydbList, mydb)
+		//create include db object
+		includeDb := &datastreampb.MysqlDatabase{
+			Database:    db.DbName,
+			MysqlTables: includeTableList,
+		}
+		includeDbList = append(includeDbList, includeDb)
+
+		//exclude table list
+		excludeTableList := []*datastreampb.MysqlTable{}
+		for _, table := range db.TableExclude {
+			excludeTable := &datastreampb.MysqlTable{
+				Table: table,
+			}
+			excludeTableList = append(excludeTableList, excludeTable)
+		}
+		//Only create an exclude object for the database if there are some exclude tables that are specified
+		if len(excludeTableList) != 0 {
+			excludeDb := &datastreampb.MysqlDatabase{
+				Database:    db.DbName,
+				MysqlTables: excludeTableList,
+			}
+			excludeDbList = append(excludeDbList, excludeDb)
+		}
 	}
-	fmt.Println("Input dbList")
-	fmt.Println(dbList)
+	fmt.Println("Include Db List")
+	fmt.Printf("%+v\n", includeDbList)
+	fmt.Println("Exclude Db List")
+	fmt.Printf("%+v\n", excludeDbList)
 	mysqlSrcCfg := &datastreampb.MysqlSourceConfig{
-		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: mydbList},
+		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: includeDbList},
+		ExcludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: excludeDbList},
 	}
 	return &datastreampb.SourceConfig_MysqlSourceConfig{MysqlSourceConfig: mysqlSrcCfg}
 }
@@ -209,14 +240,14 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 	return &datastreampb.SourceConfig_PostgresqlSourceConfig{PostgresqlSourceConfig: postgresSrcCfg}, nil
 }
 
-func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbList []string, datastreamCfg DatastreamCfg) error {
+func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbList []StreamedDatabase, datastreamCfg DatastreamCfg) error {
 	switch driver {
 	case constants.MYSQL:
 		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(dbList)
 		return nil
 	case constants.ORACLE:
 		// For Oracle, the User name denotes the name of the schema while the dbName parameter has the SID.
-		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(dbList[0])
+		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(dbList[0].DbName)
 		return nil
 	case constants.POSTGRES:
 		sourceStreamConfig, err := getPostgreSQLSourceStreamConfig(datastreamCfg.Properties)
@@ -230,7 +261,7 @@ func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbL
 }
 
 // LaunchStream populates the parameters from the streaming config and triggers a stream on Cloud Datastream.
-func LaunchStream(ctx context.Context, driver string, dbList []string, projectID string, datastreamCfg DatastreamCfg) error {
+func LaunchStream(ctx context.Context, driver string, dbList []StreamedDatabase, projectID string, datastreamCfg DatastreamCfg) error {
 	fmt.Println("Launching stream ", fmt.Sprintf("projects/%s/locations/%s", projectID, datastreamCfg.StreamLocation))
 	dsClient, err := datastream.NewClient(ctx)
 	if err != nil {
@@ -462,6 +493,12 @@ type PhysicalShard struct {
 	StreamLocation       string
 }
 
+type StreamedDatabase struct {
+	DbName       string
+	TableInclude []string
+	TableExclude []string
+}
+
 func CreateStreamingConfig(pl PhysicalShard) StreamingCfg {
 	//create dataflowcfg from pl receiver object
 	dataflowCfg := DataflowCfg{}
@@ -501,14 +538,14 @@ func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, 
 		return streamingCfg, fmt.Errorf("error reading streaming config: %v", err)
 	}
 	driver := sourceProfile.Driver
-	var dbList []string
+	var dbList []StreamedDatabase
 	switch driver {
 	case constants.MYSQL:
-		dbList = append(dbList, sourceProfile.Conn.Mysql.Db)
+		dbList = append(dbList, StreamedDatabase{DbName: sourceProfile.Conn.Mysql.Db})
 	case constants.ORACLE:
-		dbList = append(dbList, sourceProfile.Conn.Oracle.User)
+		dbList = append(dbList, StreamedDatabase{DbName: sourceProfile.Conn.Oracle.User})
 	case constants.POSTGRES:
-		dbList = append(dbList, streamingCfg.DatastreamCfg.Properties)
+		dbList = append(dbList, StreamedDatabase{DbName: streamingCfg.DatastreamCfg.Properties})
 	}
 	err = LaunchStream(ctx, driver, dbList, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
 	if err != nil {

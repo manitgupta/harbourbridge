@@ -335,14 +335,21 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 				//collect logical dbs, TODO: Add support for individual table migrations
 				fmt.Println("Updated streamingCfg")
 				fmt.Printf("%+v\n\n\n", streamingCfg)
-				var logicalDbs []string
+				var streamedDatabases []streaming.StreamedDatabase
 				for _, logicalShard := range p.LogicalShards {
-					logicalDbs = append(logicalDbs, logicalShard.DbName)
+					sd := streaming.StreamedDatabase{}
+					sd.DbName = logicalShard.DbName
+					sd.TableInclude = logicalShard.TableInclude
+					sd.TableExclude = logicalShard.TableExclude
+					streamedDatabases = append(streamedDatabases, sd)
 				}
 				fmt.Println("LogicalDbs List:")
-				fmt.Println(logicalDbs)
+				fmt.Printf("%+v\n\n\n", streamedDatabases)
 				//launch the stream for the physical shard
-				streaming.LaunchStream(ctx, sourceProfile.Driver, logicalDbs, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+				err = streaming.LaunchStream(ctx, sourceProfile.Driver, streamedDatabases, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+				if err != nil {
+					return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
+				}
 				//perform streaming migration via dataflow
 				err = streaming.StartDataflow(ctx, targetProfile, streamingCfg, conv)
 				return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}

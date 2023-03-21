@@ -462,6 +462,8 @@ type PhysicalShard struct {
 
 type LogicalShard struct {
 	DbName string `json:"dbName"`
+	TableInclude []string `json:"tableInclude"`
+	TableExclude []string `json:"tableExclude"`
 	LogicalShardId string `json:"logicalShardId"`
 	RefPhysicalShardId string `json:"refPhysicalShardId"`
 }
