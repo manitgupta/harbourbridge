@@ -439,7 +439,7 @@ type DirectConnectionConfig struct {
 	DbName   string `json:"dbName"`
 }
 
-type DataStreamConfig struct {
+type DatastreamConnProfile struct {
 	Name     string `json:"name"`
 	Location string `json:"location"`
 }
@@ -451,58 +451,59 @@ type DataflowConfig struct {
 	HostProjectId string `json:"hostProjectId"`
 }
 
-type PhysicalShard struct {
-	PhysicalShardId string `json:"physicalShardId"`
-	SrcDataStreamConfig  DataStreamConfig `json:"srcDataStreamConfig"`
-	DestDataStreamConfig DataStreamConfig `json:"destDataStreamConfig"`
-	DataflowConfig       DataflowConfig   `json:"dataflowConfig"`
-	TmpDir	string `json:"tmpDir"`
-	StreamLocation string `json:"streamLocation"`
+type DataShard struct {
+	DataShardId           string                `json:"dataShardId"`
+	SrcConnectionProfile  DatastreamConnProfile `json:"srcConnectionProfile"`
+	DestConnectionProfile DatastreamConnProfile `json:"destConnectionProfile"`
+	DataflowConfig        DataflowConfig        `json:"dataflowConfig"`
+	TmpDir                string                `json:"tmpDir"`
+	StreamLocation        string                `json:"streamLocation"`
+	LogicalShards         []LogicalShard        `json:"databases"`
 }
 
 type LogicalShard struct {
-	DbName string `json:"dbName"`
-	TableInclude []string `json:"tableInclude"`
-	TableExclude []string `json:"tableExclude"`
-	LogicalShardId string `json:"logicalShardId"`
-	RefPhysicalShardId string `json:"refPhysicalShardId"`
+	DbName         string   `json:"dbName"`
+	TableInclude   []string `json:"tableInclude"`
+	TableExclude   []string `json:"tableExclude"`
+	LogicalShardId string   `json:"databaseId"`
+	RefDataShardId string   `json:"refDataShardId"`
 }
 
 type ShardConfigurationDataflow struct {
 	SchemaShard DirectConnectionConfig `json:"schemaShard"`
-	PhysicalShards map[string]PhysicalShard `json:"physicalShards"`
-	LogicalShards map[string]LogicalShard `json:"logicalShards"`
+	DataShards  []*DataShard   `json:"dataShards"`
 }
 
 type ShardConfigurationBulk struct {
-	SchemaShard DirectConnectionConfig `json:"schemaShard"`
-	OtherShards []DirectConnectionConfig `json:"otherShards"`
+	SchemaShard DirectConnectionConfig   `json:"schemaShard"`
+	DataShards  []DirectConnectionConfig `json:"dataShards"`
 }
 
 type ShardConfigurationDMS struct {
 }
 
 type SourceProfileConfig struct {
-	ConfigType                string                        `json:"configType"`
-	ShardConfigurationBulk ShardConfigurationBulk `json:"shardConfigurationBulk"`
+	ConfigType                 string                     `json:"configType"`
+	ShardConfigurationBulk     ShardConfigurationBulk     `json:"shardConfigurationBulk"`
 	ShardConfigurationDataflow ShardConfigurationDataflow `json:"shardConfigurationDataflow"`
-	ShardConfigurationDMS ShardConfigurationDMS `json:"shardConfigurationDMS"`
+	ShardConfigurationDMS      ShardConfigurationDMS      `json:"shardConfigurationDMS"`
 }
 
 func NewSourceProfileConfig(source string, path string) (SourceProfileConfig, error) {
 	//given the source, the fact that this 'config=', determine the appropiate object to marshal into
-	if source == constants.MYSQL {
-		//load the JSON configuration into file
-		configFile, err := ioutil.ReadFile(path)
-		if err != nil {
-			return SourceProfileConfig{}, fmt.Errorf("cannot read config file due to: %v", err)
-		}
-		sourceProfileConfig := SourceProfileConfig{}
-		//unmarshal the JSON into object
-		err = json.Unmarshal(configFile, &sourceProfileConfig)
-		return sourceProfileConfig, err
-	} else {
-		return SourceProfileConfig{}, fmt.Errorf("sharded migrations are currrently only supported for MySQL databases")
+	switch source {
+		case constants.MYSQL: 
+			//load the JSON configuration into file
+			configFile, err := ioutil.ReadFile(path)
+			if err != nil {
+				return SourceProfileConfig{}, fmt.Errorf("cannot read config file due to: %v", err)
+			}
+			sourceProfileConfig := SourceProfileConfig{}
+			//unmarshal the JSON into object
+			err = json.Unmarshal(configFile, &sourceProfileConfig)
+			return sourceProfileConfig, err
+		default:
+			return SourceProfileConfig{}, fmt.Errorf("sharded migrations are currrently only supported for MySQL databases")
 	}
 }
 

@@ -159,7 +159,7 @@ func ReadStreamingConfig(file, dbName string) (StreamingCfg, error) {
 	return streamingCfg, nil
 }
 
-func getMysqlSourceStreamConfig(dbList []StreamedDatabase) *datastreampb.SourceConfig_MysqlSourceConfig {
+func getMysqlSourceStreamConfig(dbList []profiles.LogicalShard) *datastreampb.SourceConfig_MysqlSourceConfig {
 	excludeDbList := []*datastreampb.MysqlDatabase{}
 	includeDbList := []*datastreampb.MysqlDatabase{}
 	for _, db := range dbList {
@@ -240,7 +240,7 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 	return &datastreampb.SourceConfig_PostgresqlSourceConfig{PostgresqlSourceConfig: postgresSrcCfg}, nil
 }
 
-func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbList []StreamedDatabase, datastreamCfg DatastreamCfg) error {
+func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbList []profiles.LogicalShard, datastreamCfg DatastreamCfg) error {
 	switch driver {
 	case constants.MYSQL:
 		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(dbList)
@@ -261,7 +261,7 @@ func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, driver string, dbL
 }
 
 // LaunchStream populates the parameters from the streaming config and triggers a stream on Cloud Datastream.
-func LaunchStream(ctx context.Context, driver string, dbList []StreamedDatabase, projectID string, datastreamCfg DatastreamCfg) error {
+func LaunchStream(ctx context.Context, driver string, dbList []profiles.LogicalShard, projectID string, datastreamCfg DatastreamCfg) error {
 	fmt.Println("Launching stream ", fmt.Sprintf("projects/%s/locations/%s", projectID, datastreamCfg.StreamLocation))
 	dsClient, err := datastream.NewClient(ctx)
 	if err != nil {
@@ -483,23 +483,7 @@ func getStreamingConfig(sourceProfile profiles.SourceProfile, targetProfile prof
 	}
 }
 
-type PhysicalShard struct {
-	PhysicalShardId      string
-	SrcDataStreamConfig  profiles.DataStreamConfig
-	DestDataStreamConfig profiles.DataStreamConfig
-	DataflowConfig       profiles.DataflowConfig
-	LogicalShards        []profiles.LogicalShard
-	TmpDir               string
-	StreamLocation       string
-}
-
-type StreamedDatabase struct {
-	DbName       string
-	TableInclude []string
-	TableExclude []string
-}
-
-func CreateStreamingConfig(pl PhysicalShard) StreamingCfg {
+func CreateStreamingConfig(pl profiles.DataShard) StreamingCfg {
 	//create dataflowcfg from pl receiver object
 	dataflowCfg := DataflowCfg{}
 	inputDataflowConfig := pl.DataflowConfig
@@ -512,16 +496,16 @@ func CreateStreamingConfig(pl PhysicalShard) StreamingCfg {
 	//set stream config
 	datastreamCfg.StreamLocation = pl.StreamLocation
 	//set src connection profile
-	inputSrcDatastreamConfig := pl.SrcDataStreamConfig
+	inputSrcConnProfile := pl.SrcConnectionProfile
 	srcConnCfg := SrcConnCfg{}
-	srcConnCfg.Location = inputSrcDatastreamConfig.Location
-	srcConnCfg.Name = inputSrcDatastreamConfig.Name
+	srcConnCfg.Location = inputSrcConnProfile.Location
+	srcConnCfg.Name = inputSrcConnProfile.Name
 	datastreamCfg.SourceConnectionConfig = srcConnCfg
 	//set dst connection profile
 	dstConnCfg := DstConnCfg{}
-	inputDstDatastreamConfig := pl.DestDataStreamConfig
-	dstConnCfg.Name = inputDstDatastreamConfig.Name
-	dstConnCfg.Location = inputDstDatastreamConfig.Location
+	inputDstConnProfile := pl.DestConnectionProfile
+	dstConnCfg.Name = inputDstConnProfile.Name
+	dstConnCfg.Location = inputDstConnProfile.Location
 	datastreamCfg.DestinationConnectionConfig = dstConnCfg
 	//create the streamingCfg object
 	streamingCfg := StreamingCfg{}
@@ -538,14 +522,14 @@ func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, 
 		return streamingCfg, fmt.Errorf("error reading streaming config: %v", err)
 	}
 	driver := sourceProfile.Driver
-	var dbList []StreamedDatabase
+	var dbList []profiles.LogicalShard
 	switch driver {
 	case constants.MYSQL:
-		dbList = append(dbList, StreamedDatabase{DbName: sourceProfile.Conn.Mysql.Db})
+		dbList = append(dbList, profiles.LogicalShard{DbName: sourceProfile.Conn.Mysql.Db})
 	case constants.ORACLE:
-		dbList = append(dbList, StreamedDatabase{DbName: sourceProfile.Conn.Oracle.User})
+		dbList = append(dbList, profiles.LogicalShard{DbName: sourceProfile.Conn.Oracle.User})
 	case constants.POSTGRES:
-		dbList = append(dbList, StreamedDatabase{DbName: streamingCfg.DatastreamCfg.Properties})
+		dbList = append(dbList, profiles.LogicalShard{DbName: streamingCfg.DatastreamCfg.Properties})
 	}
 	err = LaunchStream(ctx, driver, dbList, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
 	if err != nil {

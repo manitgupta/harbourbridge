@@ -197,7 +197,8 @@ func schemaFromDatabase(sourceProfile profiles.SourceProfile, targetProfile prof
 	//fetch the schema. We reuse the SourceProfileConnection object for this purpose.
 	var infoSchema common.InfoSchema
 	var err error
-	if sourceProfile.Ty == profiles.SourceProfileTypeConfig {
+	switch sourceProfile.Ty {
+	case profiles.SourceProfileTypeConfig:
 		//Find Primary Shard Name
 		if sourceProfile.Config.ConfigType == "bulk" {
 			schemaShard := sourceProfile.Config.ShardConfigurationBulk.SchemaShard
@@ -216,7 +217,7 @@ func schemaFromDatabase(sourceProfile profiles.SourceProfile, targetProfile prof
 		} else {
 			return conv, fmt.Errorf("unknown type of migration, please select one of bulk, dataflow or dms")
 		}
-	} else {
+	default:
 		infoSchema, err = GetInfoSchema(sourceProfile, targetProfile)
 		if err != nil {
 			return conv, err
@@ -253,7 +254,8 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 	//handle migrating data for sharded migrations differently
 	//sharded migrations are identified via the config= flag, if that flag is not present
 	//carry on with the existing code path in the else block
-	if sourceProfile.Ty == profiles.SourceProfileTypeConfig {
+	switch sourceProfile.Ty {
+	case profiles.SourceProfileTypeConfig:
 		////There are three cases to cover here, bulk migrations and sharded migrations (and later DMS)
 		//We provide an if-else based handling for each within the sharded code branch
 		//This will be determined via the configType, which can be "bulk", "streaming" or "dms"
@@ -264,20 +266,11 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			//TODO: Will need validations for each type.
 			var bw *writer.BatchWriter
 
-			//First do the schema shard
-			schemaShard := sourceProfile.Config.ShardConfigurationBulk.SchemaShard
-			infoSchema, err := getInfoSchemaForShard(schemaShard, sourceProfile.Driver, targetProfile)
-			if err != nil {
-				return nil, err
-			}
-			//perform a snapshot migration for schema shard
-			bw = performSnapshotMigration(config, conv, client, infoSchema)
-
-			//Then do the other shards
-			for _, otherShard := range sourceProfile.Config.ShardConfigurationBulk.OtherShards {
+			//Migrate the data from the data shards, the schema shard needs to be specified here again.
+			for _, dataShard := range sourceProfile.Config.ShardConfigurationBulk.DataShards {
 				//Create a connection profile object for it
-				fmt.Printf("Migrating shard: %v\n", otherShard.DbName)
-				infoSchema, err = getInfoSchemaForShard(otherShard, sourceProfile.Driver, targetProfile)
+				fmt.Printf("Migrating shard: %v\n", dataShard.DbName)
+				infoSchema, err := getInfoSchemaForShard(dataShard, sourceProfile.Driver, targetProfile)
 				if err != nil {
 					return nil, err
 				}
@@ -288,41 +281,7 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			return bw, nil
 		} else if sourceProfile.Config.ConfigType == "dataflow" {
 			//STEP - 1 - Create batch for each physical shard
-			fmt.Printf("%+v\n", sourceProfile.Config.ShardConfigurationDataflow)
-			physicalToLogicalShardMap := make(map[string]*streaming.PhysicalShard)
-			for _, physicalShard := range sourceProfile.Config.ShardConfigurationDataflow.PhysicalShards {
-				internalPhysicalShard := streaming.PhysicalShard{}
-				internalPhysicalShard.PhysicalShardId = physicalShard.PhysicalShardId
-				internalPhysicalShard.SrcDataStreamConfig = physicalShard.SrcDataStreamConfig
-				internalPhysicalShard.DestDataStreamConfig = physicalShard.DestDataStreamConfig
-				internalPhysicalShard.DataflowConfig = physicalShard.DataflowConfig
-				internalPhysicalShard.TmpDir = physicalShard.TmpDir
-				internalPhysicalShard.LogicalShards = []profiles.LogicalShard{}
-				internalPhysicalShard.StreamLocation = physicalShard.StreamLocation
-				physicalToLogicalShardMap[physicalShard.PhysicalShardId] = &internalPhysicalShard
-
-			}
-			fmt.Printf("%+v\n", physicalToLogicalShardMap)
-			//Batch logical shards and add to the phyiscal shard.
-			for _, logicalShard := range sourceProfile.Config.ShardConfigurationDataflow.LogicalShards {
-				physicalShard, ok := physicalToLogicalShardMap[logicalShard.RefPhysicalShardId]
-				if ok {
-					fmt.Println("Appending logical shard to physical shard")
-					fmt.Printf("%+v\n\n", physicalShard)
-					fmt.Printf("%+v\n\n", logicalShard)
-					physicalShard.LogicalShards = append(physicalShard.LogicalShards, logicalShard)
-				} else {
-					return nil, fmt.Errorf("referenced physical shard not found, please check the configuration")
-				}
-			}
-			fmt.Printf("%+v", physicalToLogicalShardMap)
-
-			physicalShardsList := []*streaming.PhysicalShard{}
-			for _, phS := range physicalToLogicalShardMap {
-				physicalShardsList = append(physicalShardsList, phS)
-			}
-
-			asyncProcessShards := func(p *streaming.PhysicalShard, mutex *sync.Mutex) common.TaskResult[*streaming.PhysicalShard] {
+			asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
 				//create streaming cfg from the config source type.
 				streamingCfg := streaming.CreateStreamingConfig(*p)
 				fmt.Println("Previous streamingCfg")
@@ -330,31 +289,21 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 				//update the cfg with the HB defaults
 				err := streaming.VerifyAndUpdateCfg(&streamingCfg, targetProfile.Conn.Sp.Dbname)
 				if err != nil {
-					return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
+					return common.TaskResult[*profiles.DataShard]{Result: p, Err: err}
 				}
-				//collect logical dbs, TODO: Add support for individual table migrations
 				fmt.Println("Updated streamingCfg")
 				fmt.Printf("%+v\n\n\n", streamingCfg)
-				var streamedDatabases []streaming.StreamedDatabase
-				for _, logicalShard := range p.LogicalShards {
-					sd := streaming.StreamedDatabase{}
-					sd.DbName = logicalShard.DbName
-					sd.TableInclude = logicalShard.TableInclude
-					sd.TableExclude = logicalShard.TableExclude
-					streamedDatabases = append(streamedDatabases, sd)
-				}
-				fmt.Println("LogicalDbs List:")
-				fmt.Printf("%+v\n\n\n", streamedDatabases)
+
 				//launch the stream for the physical shard
-				err = streaming.LaunchStream(ctx, sourceProfile.Driver, streamedDatabases, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+				err = streaming.LaunchStream(ctx, sourceProfile.Driver, p.LogicalShards, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
 				if err != nil {
-					return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
+					return common.TaskResult[*profiles.DataShard]{Result: p, Err: err}
 				}
 				//perform streaming migration via dataflow
 				err = streaming.StartDataflow(ctx, targetProfile, streamingCfg, conv)
-				return common.TaskResult[*streaming.PhysicalShard]{Result: p, Err: err}
+				return common.TaskResult[*profiles.DataShard]{Result: p, Err: err}
 			}
-			_, err := common.RunParallelTasks(physicalShardsList, 5, asyncProcessShards, true)
+			_, err := common.RunParallelTasks(sourceProfile.Config.ShardConfigurationDataflow.DataShards, 5, asyncProcessShards, true)
 			if err != nil {
 				return nil, fmt.Errorf("unable to start minimal downtime migrations: %v", err)
 			}
@@ -364,7 +313,7 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 		} else {
 			return nil, fmt.Errorf("configType should be one of 'bulk', 'dataflow' or 'dms'")
 		}
-	} else {
+	default:
 		infoSchema, err := GetInfoSchema(sourceProfile, targetProfile)
 		if err != nil {
 			return nil, err
