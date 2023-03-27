@@ -92,6 +92,7 @@ var oracleTypeMap = make(map[string][]typeIssue)
 // used to communicate via HTTP with the frontend.
 type driverConfig struct {
 	Driver   string `json:"Driver"`
+	IsSharded string `json:"IsSharded"`
 	Host     string `json:"Host"`
 	Port     string `json:"Port"`
 	Database string `json:"Database"`
@@ -217,6 +218,7 @@ func databaseConnection(w http.ResponseWriter, r *http.Request) {
 	sessionState.Driver = config.Driver
 	sessionState.SessionFile = ""
 	sessionState.Dialect = config.Dialect
+	sessionState.IsSharded = config.IsSharded
 	sessionState.SourceDBConnDetails = session.SourceDBConnDetails{
 		Host:           config.Host,
 		Port:           config.Port,

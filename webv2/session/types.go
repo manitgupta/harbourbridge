@@ -52,6 +52,7 @@ type SessionState struct {
 	GCPProjectID        string
 	SpannerInstanceID   string
 	Dialect             string
+	IsSharded 			string
 	Region              string
 	SpannerDatabaseName string
 	Bucket              string
