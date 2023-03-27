@@ -72,6 +72,7 @@ export class PrepareMigrationComponent implements OnInit {
   region: string = ''
   instance: string = ''
   dialect: string = ''
+  isSharded: string = ''
   nodeCount: number = 0
   processingUnits: number = 0
 
@@ -151,6 +152,7 @@ export class PrepareMigrationComponent implements OnInit {
         this.region = res.Region
         this.instance = res.Instance
         this.dialect = res.Dialect
+        this.isSharded = res.IsSharded
         this.processingUnits = res.ProcessingUnits
         this.nodeCount = res.NodeCount
         this.migrationTypes = [

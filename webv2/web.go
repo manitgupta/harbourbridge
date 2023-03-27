@@ -115,6 +115,7 @@ type sessionSummary struct {
 	ProcessingUnits    int
 	Instance           string
 	Dialect            string
+	IsSharded	string
 }
 
 type progressDetails struct {
@@ -1574,6 +1575,7 @@ func getSourceDestinationSummary(w http.ResponseWriter, r *http.Request) {
 	sessionSummary.ProcessingUnits = int(instanceInfo.ProcessingUnits)
 	sessionSummary.Instance = sessionState.SpannerInstanceID
 	sessionSummary.Dialect = helpers.GetDialectDisplayStringFromDialect(sessionState.Dialect)
+	sessionSummary.IsSharded = sessionState.IsSharded
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(sessionSummary)
 }

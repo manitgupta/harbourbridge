@@ -191,6 +191,7 @@ export interface ISessionSummary {
   ProcessingUnits: number
   Instance: string
   Dialect: string
+  IsSharded: string
 }
 
 export interface ISpannerDetails {

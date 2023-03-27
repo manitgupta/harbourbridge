@@ -10,7 +10,8 @@
 <br />
 <div class="body">
     <div class="definition-container">
-        <h2>Source and Target Database definitions</h2>
+        <h2 *ngIf="(isSharded === 'no')">Source and Target Database definitions</h2>
+        <h2 *ngIf="(isSharded === 'yes')">Source and Target Database definitions (per shard)</h2>
         <div class="summary">
             <table mat-table [dataSource]="dataSource">
                 <ng-container matColumnDef="Title">
