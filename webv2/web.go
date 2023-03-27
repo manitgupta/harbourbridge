@@ -91,14 +91,19 @@ var oracleTypeMap = make(map[string][]typeIssue)
 // driverConfig contains the parameters needed to make a direct database connection. It is
 // used to communicate via HTTP with the frontend.
 type driverConfig struct {
-	Driver   string `json:"Driver"`
+	Driver    string `json:"Driver"`
 	IsSharded string `json:"IsSharded"`
-	Host     string `json:"Host"`
-	Port     string `json:"Port"`
-	Database string `json:"Database"`
-	User     string `json:"User"`
-	Password string `json:"Password"`
-	Dialect  string `json:"Dialect"`
+	Host      string `json:"Host"`
+	Port      string `json:"Port"`
+	Database  string `json:"Database"`
+	User      string `json:"User"`
+	Password  string `json:"Password"`
+	Dialect   string `json:"Dialect"`
+}
+
+type driverConfigs struct {
+	DbConfigs         []driverConfig `json:"DbConfigs"`
+	IsRestoredSession string         `json:"IsRestoredSession"`
 }
 
 type sessionSummary struct {
@@ -115,7 +120,7 @@ type sessionSummary struct {
 	ProcessingUnits    int
 	Instance           string
 	Dialect            string
-	IsSharded	string
+	IsSharded          string
 }
 
 type progressDetails struct {
@@ -129,6 +134,7 @@ type migrationDetails struct {
 	DataflowConfig dataflowConfig `json:"DataflowConfig"`
 	MigrationMode  string         `json:MigrationMode`
 	MigrationType  string         `json:MigrationType`
+	IsSharded      string         `json:"IsSharded"`
 }
 
 type dataflowConfig struct {
@@ -326,6 +332,62 @@ func setSourceDBDetailsForDump(w http.ResponseWriter, r *http.Request) {
 		Path:           dc.FilePath,
 		ConnectionType: helpers.DUMP_MODE,
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func setShardsSourceDBDetailsForBulk(w http.ResponseWriter, r *http.Request) {
+	sessionState := session.GetSessionState()
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Body Read Error : %v", err), http.StatusInternalServerError)
+		return
+	}
+	var shardConfigs driverConfigs
+	err = json.Unmarshal(reqBody, &shardConfigs)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+		return
+	}
+	fmt.Println("Received config object - ")
+	fmt.Printf("%+v\n\n", shardConfigs)
+	var connDetailsList []profiles.DirectConnectionConfig
+	for i, config := range shardConfigs.DbConfigs {
+		dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", config.User, config.Password, config.Host, config.Port, config.Database)
+		sourceDB, err := sql.Open(config.Driver, dataSourceName)
+		if err != nil {
+			http.Error(w, "Database connection error, check connection properties.", http.StatusInternalServerError)
+			return
+		}
+		// Open doesn't open a connection. Validate database connection.
+		err = sourceDB.Ping()
+		if err != nil {
+			http.Error(w, "Database connection error, check connection properties.", http.StatusInternalServerError)
+			return
+		}
+		sessionState.DbName = config.Database
+		sessionState.SessionFile = ""
+		connDetail := profiles.DirectConnectionConfig{
+			Host:     config.Host,
+			Port:     config.Port,
+			User:     config.User,
+			Password: config.Password,
+			DbName:   config.Database,
+		}
+		connDetailsList = append(connDetailsList, connDetail)
+		//set the first shard as the schema shard when restoring from a session file
+		if shardConfigs.IsRestoredSession == "sessionFile" {
+			if i == 0 {
+				sessionState.SourceDBConnDetails = session.SourceDBConnDetails{
+					Host:           config.Host,
+					Port:           config.Port,
+					User:           config.User,
+					Password:       config.Password,
+					ConnectionType: helpers.DIRECT_CONNECT_MODE,
+				}
+			}
+		}
+	}
+	sessionState.ShardedDbConnDetails = connDetailsList
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -1610,8 +1672,11 @@ func migrate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
 		return
 	}
-
 	sessionState := session.GetSessionState()
+	fmt.Println("Migration details passed to the backend -")
+	fmt.Printf("%+v\n\n", details)
+	fmt.Println("Session State passed to the backend - ")
+	fmt.Printf("%+v\n\n", sessionState)
 	sessionState.Error = nil
 	ctx := context.Background()
 	sessionState.Conv.Audit.Progress = internal.Progress{}
@@ -1681,11 +1746,18 @@ func getSourceAndTargetProfiles(sessionState *session.SessionState, details migr
 	sourceDBConnectionDetails := sessionState.SourceDBConnDetails
 	if sourceDBConnectionDetails.ConnectionType == helpers.DUMP_MODE {
 		sourceProfileString = fmt.Sprintf("file=%v,format=dump", sourceDBConnectionDetails.Path)
+	} else if details.IsSharded == "yes" {
+		fmt.Println("Getting source profile string for sharded migration!")
+		sourceProfileString, err = getSourceProfileStringForShardedMigrations(sessionState, details)
+		if err != nil {
+			return profiles.SourceProfile{}, profiles.TargetProfile{}, utils.IOStreams{}, "", fmt.Errorf("error while creating config to initiate sharded migration:%v", err)
+		}
 	} else {
 		sourceProfileString = fmt.Sprintf("host=%v,port=%v,user=%v,password=%v,dbName=%v",
 			sourceDBConnectionDetails.Host, sourceDBConnectionDetails.Port, sourceDBConnectionDetails.User,
 			sourceDBConnectionDetails.Password, sessionState.DbName)
 	}
+
 	sessionState.SpannerDatabaseName = details.TargetDetails.TargetDB
 	targetProfileString := fmt.Sprintf("project=%v,instance=%v,dbName=%v,dialect=%v", sessionState.GCPProjectID, sessionState.SpannerInstanceID, details.TargetDetails.TargetDB, sessionState.Dialect)
 	if details.MigrationType == helpers.LOW_DOWNTIME_MIGRATION {
@@ -1715,6 +1787,45 @@ func getSourceAndTargetProfiles(sessionState *session.SessionState, details migr
 	sourceProfile.Driver = sessionState.Driver
 	targetProfile.TargetDb = targetProfile.ToLegacyTargetDb()
 	return sourceProfile, targetProfile, ioHelper, dbName, nil
+}
+
+func getSourceProfileStringForShardedMigrations(sessionState *session.SessionState, details migrationDetails) (string, error) {
+	fileName := "HB-" + uuid.New().String() + "-sharding.cfg"
+	if details.MigrationType != helpers.LOW_DOWNTIME_MIGRATION {
+		err := createConfigFileForShardedBulkMigration(sessionState, details, fileName)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("config=%v", fileName), nil
+	} else {
+		return "", fmt.Errorf("this migration type is not implemented yet")
+	}
+}
+
+func createConfigFileForShardedBulkMigration(sessionState *session.SessionState, details migrationDetails, fileName string) error {
+	sourceProfileConfig := profiles.SourceProfileConfig{
+		ConfigType: "bulk",
+		ShardConfigurationBulk: profiles.ShardConfigurationBulk{
+			SchemaShard: profiles.DirectConnectionConfig{
+				Host:     sessionState.SourceDBConnDetails.Host,
+				User:     sessionState.SourceDBConnDetails.User,
+				Password: sessionState.SourceDBConnDetails.Password,
+				Port:     sessionState.SourceDBConnDetails.Port,
+				DbName:   sessionState.DbName,
+			},
+			DataShards: sessionState.ShardedDbConnDetails,
+		},
+	}
+	file, err := json.MarshalIndent(sourceProfileConfig, "", " ")
+	if err != nil {
+		return fmt.Errorf("error while marshalling json: %v", err)
+	}
+
+	err = ioutil.WriteFile(fileName, file, 0644)
+	if err != nil {
+		return fmt.Errorf("error while writing json to file: %v", err)
+	}
+	return nil
 }
 
 func writeSessionFile(sessionState *session.SessionState) error {
@@ -1751,10 +1862,10 @@ func createStreamingCfgFile(sessionState *session.SessionState, targetDetails ta
 			},
 		},
 		DataflowCfg: DataflowCfg{
-			JobName:    "",
-			Location:   sessionState.Region,
-			Network:    dataflowConfig.Network,
-			Subnetwork: dataflowConfig.Subnetwork,
+			JobName:       "",
+			Location:      sessionState.Region,
+			Network:       dataflowConfig.Network,
+			Subnetwork:    dataflowConfig.Subnetwork,
 			HostProjectId: dataflowConfig.HostProjectId,
 		},
 		TmpDir: "gs://" + sessionState.Bucket + sessionState.RootPath,

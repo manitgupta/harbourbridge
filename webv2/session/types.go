@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/cloudspannerecosystem/harbourbridge/internal"
+	"github.com/cloudspannerecosystem/harbourbridge/profiles"
 )
 
 type SchemaConversionSession struct {
@@ -53,6 +54,7 @@ type SessionState struct {
 	SpannerInstanceID   string
 	Dialect             string
 	IsSharded 			string
+	ShardedDbConnDetails []profiles.DirectConnectionConfig
 	Region              string
 	SpannerDatabaseName string
 	Bucket              string

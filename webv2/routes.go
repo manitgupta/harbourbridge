@@ -96,6 +96,7 @@ func getRoutes() *mux.Router {
 
 	router.HandleFunc("/SetSourceDBDetailsForDump", setSourceDBDetailsForDump).Methods("POST")
 	router.HandleFunc("/SetSourceDBDetailsForDirectConnect", setSourceDBDetailsForDirectConnect).Methods("POST")
+	router.HandleFunc("/SetShardsSourceDBDetailsForBulk", setShardsSourceDBDetailsForBulk).Methods("POST")
 
 	router.HandleFunc("/uploadFile", uploadFile).Methods("POST")
 

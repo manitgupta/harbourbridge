@@ -57,12 +57,27 @@
             <mat-card-title>Prerequisites</mat-card-title>
             <mat-card-subtitle>Before we begin, please ensure you have done the following:</mat-card-subtitle>
             <hr />
-            <div *ngIf="(connectionType ==='sessionFile') && !(selectedMigrationMode ==='Schema')">
+            <div *ngIf="(connectionType ==='sessionFile') && !(selectedMigrationMode ==='Schema') && (isSharded === 'no')">
                 <h3>Source database details:</h3>
                 <p class="point">
                     <span class="bullet">1</span>
                     <span>Setup Source database details</span><span><button mat-button class="configure"
                             (click)="openSourceDetailsForm()" [disabled]="isMigrationInProgress">
+                            Configure
+                            <mat-icon>edit</mat-icon>
+                            <mat-icon *ngIf="isSourceDetailsSet" class="success" matTooltip="Source details configured"
+                                matTooltipPosition="above">
+                                check_circle
+                            </mat-icon>
+                        </button></span>
+                </p>
+            </div>
+            <div *ngIf="(isSharded ==='yes') && (selectedMigrationType === 'bulk')">
+                <h3>Source databases details:</h3>
+                <p class="point">
+                    <span class="bullet">1</span>
+                    <span>Setup Source databases details</span><span><button mat-button class="configure"
+                            (click)="openShardedBulkSourceDetailsForm()" [disabled]="isMigrationInProgress">
                             Configure
                             <mat-icon>edit</mat-icon>
                             <mat-icon *ngIf="isSourceDetailsSet" class="success" matTooltip="Source details configured"
@@ -127,6 +142,12 @@
                 </p>
             </div>
         </mat-card>
+        <br />
+    </div>
+    <div *ngIf="(isSourceDetailsSet) && (isSharded === 'yes')">
+        <h3> Source Details</h3>
+        <span><b>Source Database: </b>{{ sourceDatabaseType }}</span><br />
+        <span><b>Number of shards configured: </b> {{ numberOfShards }}</span><br />
         <br />
     </div>
     <div *ngIf="isTargetDetailSet">

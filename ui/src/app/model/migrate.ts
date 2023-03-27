@@ -6,6 +6,7 @@ export default interface IMigrationDetails {
     DataflowConfig: IDataflowConfig
     MigrationType: string
     MigrationMode: string
+    IsSharded: string
 }
 
 export interface IProgress {

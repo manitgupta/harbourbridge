@@ -15,6 +15,8 @@ import { EndMigrationComponent } from '../end-migration/end-migration.component'
 import { IDataflowConfig, ISetUpConnectionProfile } from 'src/app/model/profile'
 import { DataflowFormComponent } from '../dataflow-form/dataflow-form.component'
 import ISpannerConfig from 'src/app/model/spanner-config'
+import { ShardedBulkSourceDetailsFormComponent } from '../sharded-bulk-source-details-form/sharded-bulk-source-details-form.component'
+import { IShardSessionDetails } from 'src/app/model/db-config'
 @Component({
   selector: 'app-prepare-migration',
   templateUrl: './prepare-migration.component.html',
@@ -73,6 +75,7 @@ export class PrepareMigrationComponent implements OnInit {
   instance: string = ''
   dialect: string = ''
   isSharded: string = ''
+  numberOfShards: string = ''
   nodeCount: number = 0
   processingUnits: number = 0
 
@@ -245,6 +248,9 @@ export class PrepareMigrationComponent implements OnInit {
     if (localStorage.getItem(MigrationDetails.GeneratingResources) != null) {
       this.generatingResources = (localStorage.getItem(MigrationDetails.GeneratingResources) as string === 'true')
     }
+    if (localStorage.getItem(MigrationDetails.NumberOfShards) != null) {
+      this.numberOfShards = localStorage.getItem(MigrationDetails.NumberOfShards) as string
+    }
   }
 
   clearLocalStorage() {
@@ -269,6 +275,7 @@ export class PrepareMigrationComponent implements OnInit {
     localStorage.removeItem(MigrationDetails.ForeignKeyUpdateProgress)
     localStorage.removeItem(MigrationDetails.HasForeignKeyUpdateStarted)
     localStorage.removeItem(MigrationDetails.GeneratingResources)
+    localStorage.removeItem(MigrationDetails.NumberOfShards)
   }
   openConnectionProfileForm(isSource: boolean) {
     let payload: ISetUpConnectionProfile = {
@@ -346,6 +353,23 @@ export class PrepareMigrationComponent implements OnInit {
     )
   }
 
+  openShardedBulkSourceDetailsForm() {
+    let payload: IShardSessionDetails = {
+      sourceDatabaseEngine: this.sourceDatabaseType,
+      isRestoredSession: this.connectionType
+    }
+    let dialogRef = this.dialog.open(ShardedBulkSourceDetailsFormComponent, {
+      width: '30vw',
+      minWidth: '400px',
+      maxWidth: '500px',
+      data: payload
+    })
+    dialogRef.afterClosed().subscribe(() => {
+      this.isSourceDetailsSet = localStorage.getItem(MigrationDetails.IsSourceDetailsSet) as string === 'true'
+      this.numberOfShards = localStorage.getItem(MigrationDetails.NumberOfShards) as string
+    })
+  }
+
   openTargetDetailsForm() {
     let spannerDetails: ISpannerDetails = {
       Region: this.region,
@@ -385,6 +409,7 @@ export class PrepareMigrationComponent implements OnInit {
     let payload: IMigrationDetails = {
       TargetDetails: this.targetDetails,
       DataflowConfig: this.dataflowConfig,
+      IsSharded: this.isSharded,
       MigrationType: this.selectedMigrationType,
       MigrationMode: this.selectedMigrationMode,
     }

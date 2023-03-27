@@ -42,7 +42,8 @@ import { SourceDetailsFormComponent } from './components/source-details-form/sou
 import { SidenavReviewChangesComponent } from './components/sidenav-review-changes/sidenav-review-changes.component'
 import { TableColumnChangesPreviewComponent } from './components/table-column-changes-preview/table-column-changes-preview.component'
 import { EndMigrationComponent } from './components/end-migration/end-migration.component'
-import { DataflowFormComponent } from './components/dataflow-form/dataflow-form.component'
+import { DataflowFormComponent } from './components/dataflow-form/dataflow-form.component';
+import { ShardedBulkSourceDetailsFormComponent } from './components/sharded-bulk-source-details-form/sharded-bulk-source-details-form.component'
 
 @NgModule({
   declarations: [
@@ -79,6 +80,7 @@ import { DataflowFormComponent } from './components/dataflow-form/dataflow-form.
     EndMigrationComponent,
     SourceDetailsFormComponent,
     DataflowFormComponent,
+    ShardedBulkSourceDetailsFormComponent,
   ],
   imports: [
     BrowserModule,

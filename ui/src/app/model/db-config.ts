@@ -1,3 +1,5 @@
+import { Interface } from "readline"
+
 export default interface IDbConfig {
   dbEngine: string
   isSharded: string
@@ -6,4 +8,14 @@ export default interface IDbConfig {
   userName: string
   password: string
   dbName: string
+}
+
+export interface IDbConfigs {
+  dbConfigs: Array<IDbConfig>
+  isRestoredSession: string
+}
+
+export interface IShardSessionDetails {
+  sourceDatabaseEngine: string
+  isRestoredSession: string
 }

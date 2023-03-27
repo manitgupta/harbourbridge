@@ -1,6 +1,6 @@
 import { HttpClient, HttpResponse } from '@angular/common/http'
 import { Injectable } from '@angular/core'
-import IDbConfig from 'src/app/model/db-config'
+import IDbConfig, { IDbConfigs } from 'src/app/model/db-config'
 import ISession, { ISaveSessionPayload } from '../../model/session'
 import IUpdateTable, { IReviewUpdateTable } from '../../model/update-table'
 import IConv, {
@@ -21,15 +21,16 @@ import IRule from 'src/app/model/rule'
   providedIn: 'root',
 })
 export class FetchService {
-  private url: string = window.location.origin
+  private url: string = 'http://localhost:8080'
   constructor(private http: HttpClient) {}
 
   connectTodb(payload: IDbConfig, dialect: string) {
-    const { dbEngine, hostName, port, dbName, userName, password } = payload
+    const { dbEngine, isSharded, hostName, port, dbName, userName, password } = payload
     return this.http.post<HttpResponse<null>>(
       `${this.url}/connect`,
       {
         Driver: dbEngine,
+        IsSharded: isSharded,
         Host: hostName,
         Port: port,
         Database: dbName,
@@ -65,6 +66,25 @@ export class FetchService {
       Database: dbName,
       User: userName,
       Password: password,
+    })
+  }
+
+  setShardsSourceDBDetailsForBulk(payload: IDbConfigs) {
+    const { dbConfigs, isRestoredSession } = payload
+    let mappedDBConfig: Array<any> = []
+    dbConfigs.forEach( (dbConfig) => {
+      mappedDBConfig.push( {
+        Driver: dbConfig.dbEngine,
+        Host: dbConfig.hostName,
+        Port: dbConfig.port,
+        Database: dbConfig.dbName,
+        User: dbConfig.userName,
+        Password: dbConfig.password,
+      })
+    })
+    return this.http.post(`${this.url}/SetShardsSourceDBDetailsForBulk`, {
+      DbConfigs: mappedDBConfig,
+      IsRestoredSession: isRestoredSession
     })
   }
 
