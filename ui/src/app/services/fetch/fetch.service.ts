@@ -14,7 +14,7 @@ import IDumpConfig, { IConvertFromDumpRequest } from '../../model/dump-config'
 import ISessionConfig from '../../model/session-config'
 import ISpannerConfig from '../../model/spanner-config'
 import IMigrationDetails, { IGeneratedResources, IProgress } from 'src/app/model/migrate'
-import IConnectionProfile, { ICreateConnectionProfile } from 'src/app/model/profile'
+import IConnectionProfile, { ICreateConnectionProfile, ICreateConnectionProfileV2, IMigrationProfile } from 'src/app/model/profile'
 import IRule from 'src/app/model/rule'
 
 @Injectable({
@@ -88,6 +88,12 @@ export class FetchService {
     })
   }
 
+  setShardSourceDBDetailsForDataflow(payload: IMigrationProfile) {
+    return this.http.post(`${this.url}/SetShardsSourceDBDetailsForDataflow`, {
+      MigrationProfile: payload
+    })
+  }
+
   getSchemaConversionFromSessionFile(payload: ISessionConfig) {
     return this.http.post<IConv>(`${this.url}/convert/session`, payload)
   }
@@ -110,7 +116,7 @@ export class FetchService {
     return this.http.get<string[]>(`${this.url}/GetStaticIps`)
   }
 
-  createConnectionProfile(payload: ICreateConnectionProfile) {
+  createConnectionProfile(payload: ICreateConnectionProfileV2) {
     return this.http.post(`${this.url}/CreateConnectionProfile`, payload)
   }
 

@@ -106,6 +106,10 @@ type driverConfigs struct {
 	IsRestoredSession string         `json:"IsRestoredSession"`
 }
 
+type shardedDataflowConfig struct {
+	MigrationProfile profiles.SourceProfileConfig
+}
+
 type sessionSummary struct {
 	DatabaseType       string
 	ConnectionDetail   string
@@ -332,6 +336,31 @@ func setSourceDBDetailsForDump(w http.ResponseWriter, r *http.Request) {
 		Path:           dc.FilePath,
 		ConnectionType: helpers.DUMP_MODE,
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func setShardsSourceDBDetailsForDataflow(w http.ResponseWriter, r *http.Request) {
+	//Take the received object and store it into session state.
+	sessionState := session.GetSessionState()
+	reqBody, err := ioutil.ReadAll(r.Body)
+	fmt.Println("Received reqObject - ")
+	fmt.Printf("%+v\n\n", string(reqBody))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Body Read Error : %v", err), http.StatusInternalServerError)
+		return
+	}
+	var srcConfig shardedDataflowConfig
+	err = json.Unmarshal(reqBody, &srcConfig)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+		return
+	}
+	fmt.Println("Received config object - ")
+	fmt.Printf("%+v\n\n", srcConfig)
+	for _, d := range srcConfig.MigrationProfile.ShardConfigurationDataflow.DataShards {
+		fmt.Printf("%+v\n", d)
+	}
+	sessionState.SourceProfileConfig = srcConfig.MigrationProfile
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -1760,7 +1789,7 @@ func getSourceAndTargetProfiles(sessionState *session.SessionState, details migr
 
 	sessionState.SpannerDatabaseName = details.TargetDetails.TargetDB
 	targetProfileString := fmt.Sprintf("project=%v,instance=%v,dbName=%v,dialect=%v", sessionState.GCPProjectID, sessionState.SpannerInstanceID, details.TargetDetails.TargetDB, sessionState.Dialect)
-	if details.MigrationType == helpers.LOW_DOWNTIME_MIGRATION {
+	if details.MigrationType == helpers.LOW_DOWNTIME_MIGRATION && details.IsSharded != "yes" {
 		fileName := sessionState.Conv.Audit.MigrationRequestId + "-streaming.json"
 		sessionState.Bucket, sessionState.RootPath, err = profile.GetBucket(sessionState.GCPProjectID, sessionState.Region, details.TargetDetails.TargetConnectionProfileName)
 		if err != nil {
@@ -1797,9 +1826,35 @@ func getSourceProfileStringForShardedMigrations(sessionState *session.SessionSta
 			return "", err
 		}
 		return fmt.Sprintf("config=%v", fileName), nil
+	} else if details.MigrationType == helpers.LOW_DOWNTIME_MIGRATION {
+		err := createConfigFileForShardedDataflowMigration(sessionState, details, fileName)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("config=%v", fileName), nil
 	} else {
 		return "", fmt.Errorf("this migration type is not implemented yet")
 	}
+
+}
+
+func createConfigFileForShardedDataflowMigration(sessionState *session.SessionState, details migrationDetails, fileName string) error {
+	sourceProfileConfig := sessionState.SourceProfileConfig
+	sourceProfileConfig.ShardConfigurationDataflow.DataflowConfig = profiles.DataflowConfig{
+		Location:      sessionState.Region,
+		HostProjectId: details.DataflowConfig.HostProjectId,
+		Network:       details.DataflowConfig.Network,
+		Subnetwork:    details.DataflowConfig.Subnetwork,
+	}
+	file, err := json.MarshalIndent(sourceProfileConfig, "", " ")
+	if err != nil {
+		return fmt.Errorf("error while marshalling json: %v", err)
+	}
+	err = ioutil.WriteFile(fileName, file, 0644)
+	if err != nil {
+		return fmt.Errorf("error while writing json to file: %v", err)
+	}
+	return nil
 }
 
 func createConfigFileForShardedBulkMigration(sessionState *session.SessionState, details migrationDetails, fileName string) error {

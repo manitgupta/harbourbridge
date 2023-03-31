@@ -54,7 +54,9 @@ type SessionState struct {
 	SpannerInstanceID   string
 	Dialect             string
 	IsSharded 			string
+	TmpDir string
 	ShardedDbConnDetails []profiles.DirectConnectionConfig
+	SourceProfileConfig profiles.SourceProfileConfig
 	Region              string
 	SpannerDatabaseName string
 	Bucket              string

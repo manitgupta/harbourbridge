@@ -101,7 +101,20 @@
                             </mat-icon>
                         </button></span>
                 </p>
-                <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema')">
+                <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema') && (isSharded === 'yes')">
+                    <span class="bullet">2</span>
+                    <span>Setup Migration profile</span><span><button mat-button class="configure"
+                            (click)="openMigrationProfileForm()"
+                            [disabled]="isMigrationInProgress || !isTargetDetailSet">
+                            Configure
+                            <mat-icon>edit</mat-icon>
+                            <mat-icon *ngIf="isSourceConnectionProfileSet" class="success"
+                                matTooltip="Source connection profile configured" matTooltipPosition="above">
+                                check_circle
+                            </mat-icon>
+                        </button></span>
+                </p>
+                <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema') && (isSharded === 'no')">
                     <span class="bullet">2</span>
                     <span>Setup source connection profile</span><span><button mat-button class="configure"
                             (click)="openConnectionProfileForm(true)"
@@ -114,7 +127,7 @@
                             </mat-icon>
                         </button></span>
                 </p>
-                <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema')">
+                <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema') && (isSharded === 'no')">
                     <span class="bullet">3</span>
                     <span>Setup target connection profile</span><span><button mat-button class="configure"
                             (click)="openConnectionProfileForm(false)"
@@ -128,7 +141,8 @@
                         </button></span>
                 </p>
                 <p class="point" *ngIf="(selectedMigrationType ==='lowdt') && !(selectedMigrationMode ==='Schema')">
-                    <span class="bullet">4</span>
+                    <span class="bullet" *ngIf="isSharded === 'yes'">3</span>
+                    <span class="bullet" *ngIf="isSharded === 'no'">4</span>
                     <span>Configure Dataflow (Optional) </span><span><button mat-button class="configure"
                             (click)="openDataflowForm()"
                             [disabled]="isMigrationInProgress || !isTargetDetailSet">

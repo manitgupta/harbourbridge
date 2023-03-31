@@ -455,7 +455,7 @@ type DataShard struct {
 	DataShardId           string                `json:"dataShardId"`
 	SrcConnectionProfile  DatastreamConnProfile `json:"srcConnectionProfile"`
 	DestConnectionProfile DatastreamConnProfile `json:"destConnectionProfile"`
-	DataflowConfig        DataflowConfig        `json:"dataflowConfig"`
+	DataflowConfig        DataflowConfig        `json:"-"` //internal field
 	TmpDir                string                `json:"tmpDir"`
 	StreamLocation        string                `json:"streamLocation"`
 	LogicalShards         []LogicalShard        `json:"databases"`
@@ -472,6 +472,7 @@ type LogicalShard struct {
 type ShardConfigurationDataflow struct {
 	SchemaShard DirectConnectionConfig `json:"schemaShard"`
 	DataShards  []*DataShard   `json:"dataShards"`
+	DataflowConfig        DataflowConfig        `json:"dataflowConfig"`
 }
 
 type ShardConfigurationBulk struct {

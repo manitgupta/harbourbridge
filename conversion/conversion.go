@@ -250,6 +250,12 @@ func snapshotMigrationHandler(sourceProfile profiles.SourceProfile, config write
 	}
 }
 
+func updateShardsWithDataflowConfig(shardedDataflowConfig profiles.ShardConfigurationDataflow) {
+	for _, dataShard := range shardedDataflowConfig.DataShards {
+		dataShard.DataflowConfig = shardedDataflowConfig.DataflowConfig
+	}
+}
+
 func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, config writer.BatchWriterConfig, conv *internal.Conv, client *sp.Client) (*writer.BatchWriter, error) {
 	//handle migrating data for sharded migrations differently
 	//sharded migrations are identified via the config= flag, if that flag is not present
@@ -281,6 +287,7 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			return bw, nil
 		} else if sourceProfile.Config.ConfigType == "dataflow" {
 			//STEP - 1 - Create batch for each physical shard
+			updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
 			asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
 				//create streaming cfg from the config source type.
 				streamingCfg := streaming.CreateStreamingConfig(*p)
