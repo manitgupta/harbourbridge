@@ -97,14 +97,14 @@
                     matTooltipPosition="above">
                     check_circle
                 </mat-icon>
-                <button mat-raised-button type="submit" color="primary"
+                <button mat-raised-button type="button" color="primary"
                     (click)="createOrTestConnection(true, true)">TEST
                     CONNECTION</button>
                 <mat-icon *ngIf="createSrcConnSuccess" class="success" matTooltip="Profile creation successful"
                     matTooltipPosition="above">
                     check_circle
                 </mat-icon>
-                <button mat-raised-button type="submit" color="warn"
+                <button mat-raised-button type="button" color="warn"
                     (click)="createOrTestConnection(true, false)">CREATE
                     PROFILE</button>
             </div>
@@ -130,7 +130,7 @@
                 </ng-container>
             </span>
             <div class="table-buttons">
-                <button mat-raised-button color="primary" (click)="addRow()">ADD ROW</button>
+                <button mat-raised-button color="primary" (click)="addRow()" type="button">ADD ROW</button>
             </div>
             <br>
             <hr>
@@ -165,7 +165,7 @@
                     matTooltipPosition="above">
                     check_circle
                 </mat-icon>
-                <button mat-raised-button type="submit" color="warn"
+                <button mat-raised-button type="button" color="warn"
                     (click)="createOrTestConnection(false, false)">CREATE
                     PROFILE</button>
             </div>
