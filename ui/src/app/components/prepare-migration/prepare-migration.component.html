@@ -207,11 +207,11 @@
             <li>Dataflow job: <a [href]="resourcesGenerated.DataflowJobUrl" target="_blank">{{resourcesGenerated.DataflowJobName}}</a>
             </li>
         </span>
-        <span *ngIf="resourcesGenerated.DataStreamJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
+        <span *ngIf="(selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
             <li *ngFor="let stream of resourcesGenerated.ShardToDatastreamMap | keyvalue"> 
                 Datastream job for shardId: {{ stream.key }} - <a [href]="stream.value.JobUrl" target="_blank">{{stream.value.JobName}}</a></li>
         </span>
-        <span *ngIf="resourcesGenerated.DataflowJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
+        <span *ngIf="(selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
             <li *ngFor="let dfJob of resourcesGenerated.ShardToDataflowMap | keyvalue">
                 Dataflow job for shardId: {{ dfJob.key }} - <a [href]="dfJob.value.JobUrl" target="_blank">{{dfJob.value.JobName}}</a>
             </li>
