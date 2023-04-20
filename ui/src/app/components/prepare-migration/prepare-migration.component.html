@@ -199,12 +199,21 @@
         <h3> Generated Resources:</h3>
         <li>Spanner database: <a [href]="resourcesGenerated.DatabaseUrl" target="_blank">{{resourcesGenerated.DatabaseName}}</a></li>
         <li>GCS bucket: <a [href]="resourcesGenerated.BucketUrl" target="_blank">{{resourcesGenerated.BucketName}}</a></li>
-        <span *ngIf="resourcesGenerated.DataStreamJobName!=='' && (selectedMigrationType ==='lowdt')">
+        <span *ngIf="resourcesGenerated.DataStreamJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'no')">
             <li> Datastream job: <a
                     [href]="resourcesGenerated.DataStreamJobUrl" target="_blank">{{resourcesGenerated.DataStreamJobName}}</a></li>
         </span>
-        <span *ngIf="resourcesGenerated.DataflowJobName!=='' && (selectedMigrationType ==='lowdt')">
+        <span *ngIf="resourcesGenerated.DataflowJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'no')">
             <li>Dataflow job: <a [href]="resourcesGenerated.DataflowJobUrl" target="_blank">{{resourcesGenerated.DataflowJobName}}</a>
+            </li>
+        </span>
+        <span *ngIf="resourcesGenerated.DataStreamJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
+            <li *ngFor="let stream of resourcesGenerated.ShardToDatastreamMap | keyvalue"> 
+                Datastream job for shardId: {{ stream.key }} - <a [href]="stream.value.JobUrl" target="_blank">{{stream.value.JobName}}</a></li>
+        </span>
+        <span *ngIf="resourcesGenerated.DataflowJobName!=='' && (selectedMigrationType ==='lowdt') && (isSharded === 'yes')">
+            <li *ngFor="let dfJob of resourcesGenerated.ShardToDataflowMap | keyvalue">
+                Dataflow job for shardId: {{ dfJob.key }} - <a [href]="dfJob.value.JobUrl" target="_blank">{{dfJob.value.JobName}}</a>
             </li>
         </span>
     </div>

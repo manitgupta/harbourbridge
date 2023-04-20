@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"sync"
 	"time"
 
 	dataflow "cloud.google.com/go/dataflow/apiv1beta3"
@@ -70,6 +71,7 @@ type StreamingCfg struct {
 	DatastreamCfg DatastreamCfg
 	DataflowCfg   DataflowCfg
 	TmpDir        string
+	DataShardId string
 }
 
 // VerifyAndUpdateCfg checks the fields and errors out if certain fields are empty.
@@ -434,13 +436,23 @@ func LaunchDataflowJob(ctx context.Context, targetProfile profiles.TargetProfile
 		fmt.Printf("flexTemplateRequest: %+v\n", req)
 		return fmt.Errorf("unable to launch template: %v", err)
 	}
-	printDataflowJob(conv, datastreamCfg, respDf, project)
+	printDataflowJob(conv, datastreamCfg, respDf, project, streamingCfg.DataShardId)
 	return nil
 }
 
-func printDataflowJob(conv *internal.Conv, datastreamCfg DatastreamCfg, respDf *dataflowpb.LaunchFlexTemplateResponse, project string) {
+func printDataflowJob(conv *internal.Conv, datastreamCfg DatastreamCfg, respDf *dataflowpb.LaunchFlexTemplateResponse, project string, dataShardId string) {
 	conv.Audit.StreamingStats.DataStreamName = datastreamCfg.StreamId
 	conv.Audit.StreamingStats.DataflowJobId = respDf.Job.Id
+	if dataShardId != "" {
+		var resourceMutex sync.Mutex
+		resourceMutex.Lock()
+		conv.Audit.StreamingStats.ShardToDataStreamNameMap[dataShardId] = datastreamCfg.StreamId
+		conv.Audit.StreamingStats.ShardToDataflowJobMap[dataShardId] = respDf.Job.Id
+		resourceMutex.Unlock()
+	}
+	fmt.Println("Maps:")
+	fmt.Printf("%+v\n\n", conv.Audit.StreamingStats.ShardToDataStreamNameMap)
+	fmt.Printf("%+v\n\n", conv.Audit.StreamingStats.ShardToDataflowJobMap)
 	fullStreamName := fmt.Sprintf("projects/%s/locations/%s/streams/%s", project, datastreamCfg.StreamLocation, datastreamCfg.StreamId)
 	dfJobDetails := fmt.Sprintf("project: %s, location: %s, name: %s, id: %s", project, respDf.Job.Location, respDf.Job.Name, respDf.Job.Id)
 	fmt.Println("\n------------------------------------------\n" +
@@ -513,6 +525,7 @@ func CreateStreamingConfig(pl profiles.DataShard) StreamingCfg {
 	streamingCfg.DatastreamCfg = datastreamCfg
 	//set the Temp GCS dir
 	streamingCfg.TmpDir = pl.TmpDir
+	streamingCfg.DataShardId = pl.DataShardId
 	return streamingCfg
 }
 

@@ -1755,6 +1755,8 @@ func getGeneratedResources(w http.ResponseWriter, r *http.Request) {
 	generatedResources.DatabaseUrl = fmt.Sprintf("https://pantheon.corp.google.com/spanner/instances/%v/databases/%v/details/tables?project=%v", sessionState.SpannerInstanceID, sessionState.SpannerDatabaseName, sessionState.GCPProjectID)
 	generatedResources.BucketName = sessionState.Bucket + sessionState.RootPath
 	generatedResources.BucketUrl = fmt.Sprintf("https://pantheon.corp.google.com/storage/browser/%v", sessionState.Bucket+sessionState.RootPath)
+	generatedResources.ShardToDataflowMap = make(map[string]ResourceDetails)
+	generatedResources.ShardToDatastreamMap = make(map[string]ResourceDetails)
 	if sessionState.Conv.Audit.StreamingStats.DataStreamName != "" {
 		generatedResources.DataStreamJobName = sessionState.Conv.Audit.StreamingStats.DataStreamName
 		generatedResources.DataStreamJobUrl = fmt.Sprintf("https://pantheon.corp.google.com/datastream/streams/locations/%v/instances/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DataStreamName, sessionState.GCPProjectID)
@@ -1763,6 +1765,20 @@ func getGeneratedResources(w http.ResponseWriter, r *http.Request) {
 		generatedResources.DataflowJobName = sessionState.Conv.Audit.StreamingStats.DataflowJobId
 		generatedResources.DataflowJobUrl = fmt.Sprintf("https://pantheon.corp.google.com/dataflow/jobs/%v/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DataflowJobId, sessionState.GCPProjectID)
 	}
+	for shardId, dsName := range sessionState.Conv.Audit.StreamingStats.ShardToDataStreamNameMap {
+		url := fmt.Sprintf("https://pantheon.corp.google.com/datastream/streams/locations/%v/instances/%v?project=%v", sessionState.Region, dsName, sessionState.GCPProjectID)
+		resourceDetails := ResourceDetails{JobName: dsName, JobUrl: url}
+		generatedResources.ShardToDatastreamMap[shardId] = resourceDetails
+	}
+	for shardId, dfId := range sessionState.Conv.Audit.StreamingStats.ShardToDataflowJobMap {
+		url := fmt.Sprintf("https://pantheon.corp.google.com/dataflow/jobs/%v/%v?project=%v", sessionState.Region, dfId, sessionState.GCPProjectID)
+		resourceDetails := ResourceDetails{JobName: dfId, JobUrl: url}
+		generatedResources.ShardToDataflowMap[shardId] = resourceDetails
+	}
+	fmt.Println("Generated Resources:")
+	x, _ := json.Marshal(generatedResources)
+	fmt.Println(string(x))
+	fmt.Println("Generated Resources printed")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(generatedResources)
 }
@@ -2324,15 +2340,21 @@ type typeIssue struct {
 	DisplayT string
 }
 
+type ResourceDetails struct {
+	JobName string `json:"JobName"`
+	JobUrl string `json:"JobUrl"`
+}
 type GeneratedResources struct {
-	DatabaseName      string
-	DatabaseUrl       string
-	BucketName        string
-	BucketUrl         string
-	DataStreamJobName string
-	DataStreamJobUrl  string
-	DataflowJobName   string
-	DataflowJobUrl    string
+	DatabaseName      string `json:"DatabaseName"`
+	DatabaseUrl       string `json:"DatabaseUrl"`
+	BucketName        string `json:"BucketName"`
+	BucketUrl         string `json:"BucketUrl"`
+	DataStreamJobName string `json:"DataStreamJobName"`
+	DataStreamJobUrl  string `json:"DataStreamJobUrl"`
+	DataflowJobName   string `json:"DataflowJobName"`
+	DataflowJobUrl    string `json:"DataflowJobUrl"`
+	ShardToDatastreamMap map[string]ResourceDetails `json:"ShardToDatastreamMap"`
+	ShardToDataflowMap map[string]ResourceDetails `json:"ShardToDataflowMap"`
 }
 
 func addTypeToList(convertedType string, spType string, issues []internal.SchemaIssue, l []typeIssue) []typeIssue {

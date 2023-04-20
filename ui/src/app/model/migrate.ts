@@ -24,6 +24,13 @@ export interface IGeneratedResources {
     DataStreamJobUrl: string
     DataflowJobName: string
     DataflowJobUrl: string
+    ShardToDatastreamMap: Map<string, ResourceDetails>
+    ShardToDataflowMap: Map<string, ResourceDetails>
+}
+
+export interface ResourceDetails {
+    JobName: string
+    JobUrl: string
 }
 
 export interface ISourceAndTargetDetails {

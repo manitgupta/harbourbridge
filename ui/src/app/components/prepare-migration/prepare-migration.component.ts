@@ -5,7 +5,7 @@ import { FetchService } from 'src/app/services/fetch/fetch.service'
 import { SnackbarService } from 'src/app/services/snackbar/snackbar.service'
 import ITargetDetails from 'src/app/model/target-details'
 import { ISessionSummary, ISpannerDetails } from 'src/app/model/conv'
-import IMigrationDetails, { IGeneratedResources, IProgress, ISourceAndTargetDetails } from 'src/app/model/migrate'
+import IMigrationDetails, { IGeneratedResources, IProgress, ISourceAndTargetDetails, ResourceDetails } from 'src/app/model/migrate'
 import { Dataflow, InputType, MigrationDetails, MigrationModes, MigrationTypes, ProgressStatus, SourceDbNames, TargetDetails } from 'src/app/app.constants'
 import { interval, Subscription } from 'rxjs'
 import { DataService } from 'src/app/services/data/data.service'
@@ -70,7 +70,9 @@ export class PrepareMigrationComponent implements OnInit {
     DataStreamJobName: '',
     DataStreamJobUrl: '',
     DataflowJobName: '',
-    DataflowJobUrl: ''
+    DataflowJobUrl: '',
+    ShardToDatastreamMap: new Map<string, ResourceDetails>(),
+    ShardToDataflowMap: new Map<string, ResourceDetails>(),
   }
   region: string = ''
   instance: string = ''
@@ -622,7 +624,9 @@ export class PrepareMigrationComponent implements OnInit {
       DataStreamJobName: '',
       DataStreamJobUrl: '',
       DataflowJobName: '',
-      DataflowJobUrl: ''
+      DataflowJobUrl: '',
+      ShardToDatastreamMap: new Map<string, ResourceDetails>(),
+      ShardToDataflowMap: new Map<string, ResourceDetails>()
     }
     this.initializeLocalStorage()
   }

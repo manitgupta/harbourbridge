@@ -288,6 +288,8 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 		} else if sourceProfile.Config.ConfigType == "dataflow" {
 			//STEP - 1 - Create batch for each physical shard
 			updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
+			conv.Audit.StreamingStats.ShardToDataStreamNameMap = make(map[string]string)
+			conv.Audit.StreamingStats.ShardToDataflowJobMap = make(map[string]string)
 			asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
 				//create streaming cfg from the config source type.
 				streamingCfg := streaming.CreateStreamingConfig(*p)
