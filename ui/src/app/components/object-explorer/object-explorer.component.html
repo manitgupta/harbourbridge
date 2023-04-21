@@ -191,7 +191,28 @@
             placeholder="Filter by name"
           />
         </div>
+        <div clas="delete-selected-btn">
+          <button
+            mat-button
+            color="primary"
+            class="icon drop"
+            (click)="dropSelected()">
+            <mat-icon>delete</mat-icon>
+            <span>DROP</span>
+          </button>
+        </div>
+        <div clas="restore-selected-btn">
+          <button
+            mat-button
+            color="primary"
+            class="icon drop"
+            (click)="restoreSelected()">
+            <mat-icon>undo</mat-icon>
+            <span>RESTORE</span>
+          </button>
+        </div>
       </div>
+      
 
       <div class="explorer-table">
         <table mat-table [dataSource]="dataSource">
@@ -262,6 +283,9 @@
               *matCellDef="let data"
               [ngClass]="{ sidebar_link: true, 'gray-out': data.isDeleted }"
             >
+            <mat-checkbox class="checklist-node"
+            [checked]="checklistSelection.isSelected(data)"
+            (change)="selectionToggle(data);"></mat-checkbox>
               <button
                 mat-icon-button
                 [style.visibility]="!data.expandable ? 'hidden' : ''"

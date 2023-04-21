@@ -8,6 +8,9 @@ import { SidenavService } from '../../services/sidenav/sidenav.service'
 import { IUpdateTableArgument } from 'src/app/model/update-table'
 import IConv from '../../model/conv'
 import { ClickEventService } from 'src/app/services/click-event/click-event.service'
+import { SelectionModel } from '@angular/cdk/collections'
+import { DataService } from 'src/app/services/data/data.service'
+import { take } from 'rxjs'
 
 @Component({
   selector: 'app-object-explorer',
@@ -66,14 +69,16 @@ export class ObjectExplorerComponent implements OnInit {
   )
   dataSource = new MatTreeFlatDataSource(this.treeControl, this.treeFlattener)
   srcDataSource = new MatTreeFlatDataSource(this.srcTreeControl, this.treeFlattener)
+  checklistSelection = new SelectionModel<FlatNode>(true, []);
 
   displayedColumns: string[] = ['status', 'name']
 
   constructor(
     private conversion: ConversionService,
+    private data: DataService,
     private sidenav: SidenavService,
     private clickEvent: ClickEventService
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.clickEvent.tabToSpanner.subscribe({
@@ -181,5 +186,45 @@ export class ObjectExplorerComponent implements OnInit {
   }
   setSpannerTab() {
     this.selectedIndex = 1
+  }
+
+  dropSelected() {
+    //selected values to be dropped
+    const values = this.checklistSelection.selected
+    values.forEach((flatNode) => {
+      this.data.dropTable(flatNode.id)
+        .pipe(take(1))
+        .subscribe((res: string) => {
+          if (res === '') {
+            this.data.getConversionRate()
+            // this.updateSidebar.emit(true)
+          }
+        })
+    });
+  }
+
+  restoreSelected() {
+    //selected values to be restored
+    const values = this.checklistSelection.selected
+    values.forEach((flatNode) => {
+      this.data
+        .restoreTable(flatNode.id)
+        .pipe(take(1))
+        .subscribe((res: string) => {
+          if (res === '') {
+          }
+          this.data.getConversionRate()
+          this.data.getDdl()
+        })
+    })
+  }
+
+  /** Toggle the to-do item selection. Select/deselect all the descendants node */
+  selectionToggle(node: FlatNode): void {
+    this.checklistSelection.toggle(node);
+    const descendants = this.treeControl.getDescendants(node);
+    this.checklistSelection.isSelected(node)
+      ? this.checklistSelection.select(...descendants)
+      : this.checklistSelection.deselect(...descendants);
   }
 }
