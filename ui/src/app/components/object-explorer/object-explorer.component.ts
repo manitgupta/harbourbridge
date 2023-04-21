@@ -11,6 +11,7 @@ import { ClickEventService } from 'src/app/services/click-event/click-event.serv
 import { SelectionModel } from '@angular/cdk/collections'
 import { DataService } from 'src/app/services/data/data.service'
 import { take } from 'rxjs'
+import { ITables } from 'src/app/model/migrate'
 
 @Component({
   selector: 'app-object-explorer',
@@ -191,16 +192,22 @@ export class ObjectExplorerComponent implements OnInit {
   dropSelected() {
     //selected values to be dropped
     const values = this.checklistSelection.selected
+    var tables: ITables = {
+      TableList: []
+    };
     values.forEach((flatNode) => {
-      this.data.dropTable(flatNode.id)
-        .pipe(take(1))
-        .subscribe((res: string) => {
-          if (res === '') {
-            this.data.getConversionRate()
-            // this.updateSidebar.emit(true)
-          }
-        })
-    });
+      if (flatNode.id != "") {
+        tables.TableList.push(flatNode.id)
+      }
+    })
+    this.data.dropTables(tables)
+      .pipe(take(1))
+      .subscribe((res: string) => {
+        if (res === '') {
+          this.data.getConversionRate()
+          // this.updateSidebar.emit(true)
+        }
+      })
   }
 
   restoreSelected() {

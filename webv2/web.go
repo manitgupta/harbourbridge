@@ -941,6 +941,7 @@ func setParentTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tableId == "" {
+		fmt.Println("Parent Table name empty check")
 		http.Error(w, fmt.Sprintf("Table Id is empty"), http.StatusBadRequest)
 	}
 	tableInterleaveStatus := parentTableHelper(tableId, update)
@@ -1106,6 +1107,7 @@ func removeParentTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tableId == "" {
+		fmt.Println("Remove Table name empty check")
 		http.Error(w, fmt.Sprintf("Table Id is empty"), http.StatusBadRequest)
 		return
 	}
@@ -1170,6 +1172,7 @@ func restoreTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tableId == "" {
+		fmt.Println("Restore Table name empty check")
 		http.Error(w, fmt.Sprintf("Table Id is empty"), http.StatusBadRequest)
 	}
 
@@ -1210,14 +1213,38 @@ func restoreTable(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(convm)
 }
 
-func dropTable(w http.ResponseWriter, r *http.Request) {
-	tableId := r.FormValue("table")
+func dropTables(w http.ResponseWriter, r *http.Request) {
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Body Read Error : %v", err), http.StatusInternalServerError)
+		return
+	}
+	var tables internal.Tables
+	err = json.Unmarshal(reqBody, &tables)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+		return
+	}
+	fmt.Println("Received tables - ")
+	fmt.Printf("%+v\n", tables)
+	var convm session.ConvWithMetadata
+	for idx, tableId := range tables.TableList {
+		fmt.Printf("idx = %d and tableId = %s\n", idx, tableId)
+		convm = dropTableHelper(w, tableId)
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(convm)
+}
+
+func dropTableHelper(w http.ResponseWriter, tableId string) session.ConvWithMetadata {
 	sessionState := session.GetSessionState()
 	if sessionState.Conv == nil || sessionState.Driver == "" {
 		http.Error(w, fmt.Sprintf("Schema is not converted or Driver is not configured properly. Please retry converting the database to Spanner."), http.StatusNotFound)
-		return
+		return session.ConvWithMetadata{}
 	}
+	fmt.Println("tableId = " + tableId)
 	if tableId == "" {
+		fmt.Println("Drop Table name empty check")
 		http.Error(w, fmt.Sprintf("Table Id is empty"), http.StatusBadRequest)
 	}
 	spSchema := sessionState.Conv.SpSchema
@@ -1286,6 +1313,12 @@ func dropTable(w http.ResponseWriter, r *http.Request) {
 		SessionMetadata: sessionState.SessionMetadata,
 		Conv:            *sessionState.Conv,
 	}
+	return convm
+}
+
+func dropTable(w http.ResponseWriter, r *http.Request) {
+	tableId := r.FormValue("table")
+	convm := dropTableHelper(w, tableId)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(convm)
 }
@@ -1299,6 +1332,7 @@ func restoreSecondaryIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tableId == "" {
+		fmt.Println("Restore Secondary Index name empty check")
 		http.Error(w, fmt.Sprintf("Table Id is empty"), http.StatusBadRequest)
 		return
 	}

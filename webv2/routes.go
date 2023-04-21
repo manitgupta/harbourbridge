@@ -57,6 +57,7 @@ func getRoutes() *mux.Router {
 
 	router.HandleFunc("/restore/table", restoreTable).Methods("POST")
 	router.HandleFunc("/drop/table", dropTable).Methods("POST")
+	router.HandleFunc("/drop/table/all", dropTables).Methods("POST")
 
 	router.HandleFunc("/update/fks", updateForeignKeys).Methods("POST")
 	router.HandleFunc("/update/indexes", updateIndexes).Methods("POST")

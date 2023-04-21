@@ -31,3 +31,7 @@ export interface ISourceAndTargetDetails {
     SourceDatabaseName: string
     SourceDatabaseType: string
 }
+
+export interface ITables {
+    TableList: string[]
+}
