@@ -121,6 +121,10 @@ export class FetchService {
     return this.http.post<HttpResponse<IConv>>(`${this.url}/removeParent?tableId=${tableId}`, {})
   }
 
+  restoreTables(payload: ITables) {
+    return this.http.post(`${this.url}/restore/table/selected`, payload)
+  }
+
   restoreTable(tableId: string) {
     return this.http.post<HttpResponse<IConv>>(`${this.url}/restore/table?table=${tableId}`, {})
   }
@@ -129,7 +133,7 @@ export class FetchService {
   }
   
   dropTables(payload: ITables) {
-    return this.http.post(`${this.url}/drop/table/all`, payload)
+    return this.http.post(`${this.url}/drop/table/selected`, payload)
   }
 
   updatePk(pkObj: IPrimaryKey) {

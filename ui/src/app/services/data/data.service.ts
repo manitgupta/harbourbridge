@@ -254,6 +254,25 @@ export class DataService {
     )
   }
 
+  restoreTables(tables: ITables): Observable<string> {
+    return this.fetch.restoreTables(tables).pipe(
+      catchError((e: any) => {
+        return of({ error: e.error })
+      }),
+      tap(console.log),
+      map((data) => {
+        if (data.error) {
+          this.snackbar.openSnackBar(data.error, 'Close')
+          return data.error
+        } else {
+          this.convSubject.next(data)
+          this.snackbar.openSnackBar('Selected tables restored successfully', 'Close', 5)
+          return ''
+        }
+      })
+    )
+  }
+
   restoreTable(tableId: string): Observable<string> {
     return this.fetch.restoreTable(tableId).pipe(
       catchError((e: any) => {

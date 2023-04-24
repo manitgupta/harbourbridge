@@ -32,6 +32,7 @@ export class ObjectExplorerComponent implements OnInit {
   @Output() updateSpannerTable = new EventEmitter<IUpdateTableArgument>()
   @Output() updateSrcTable = new EventEmitter<IUpdateTableArgument>()
   @Output() leftCollaspe: EventEmitter<any> = new EventEmitter()
+  @Output() updateSidebar = new EventEmitter<boolean>()
   @Input() spannerTree: ISchemaObjectNode[] = []
   @Input() srcTree: ISchemaObjectNode[] = []
   @Input() srcDbName: string = ''
@@ -196,7 +197,7 @@ export class ObjectExplorerComponent implements OnInit {
       TableList: []
     };
     values.forEach((flatNode) => {
-      if (flatNode.id != "") {
+      if (flatNode.id != "" && flatNode.id.startsWith("t")) {
         tables.TableList.push(flatNode.id)
       }
     })
@@ -205,7 +206,7 @@ export class ObjectExplorerComponent implements OnInit {
       .subscribe((res: string) => {
         if (res === '') {
           this.data.getConversionRate()
-          // this.updateSidebar.emit(true)
+          this.updateSidebar.emit(true)
         }
       })
   }
@@ -213,17 +214,23 @@ export class ObjectExplorerComponent implements OnInit {
   restoreSelected() {
     //selected values to be restored
     const values = this.checklistSelection.selected
+    var tables: ITables = {
+      TableList: []
+    };
     values.forEach((flatNode) => {
-      this.data
-        .restoreTable(flatNode.id)
-        .pipe(take(1))
-        .subscribe((res: string) => {
-          if (res === '') {
-          }
-          this.data.getConversionRate()
-          this.data.getDdl()
-        })
+      if (flatNode.id != "" && flatNode.id.startsWith("t")) {
+        tables.TableList.push(flatNode.id)
+      }
     })
+    this.data
+      .restoreTables(tables)
+      .pipe(take(1))
+      .subscribe((res: string) => {
+        if (res === '') {
+        }
+        this.data.getConversionRate()
+        this.data.getDdl()
+      })
   }
 
   /** Toggle the to-do item selection. Select/deselect all the descendants node */
