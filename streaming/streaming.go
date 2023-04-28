@@ -56,6 +56,7 @@ type DatastreamCfg struct {
 	SourceConnectionConfig      SrcConnCfg
 	DestinationConnectionConfig DstConnCfg
 	Properties                  string
+	tableList                   []string
 }
 
 type DataflowCfg struct {
@@ -74,7 +75,7 @@ type StreamingCfg struct {
 
 // VerifyAndUpdateCfg checks the fields and errors out if certain fields are empty.
 // It then auto-populates certain empty fields like StreamId and Dataflow JobName.
-func VerifyAndUpdateCfg(streamingCfg *StreamingCfg, dbName string) error {
+func VerifyAndUpdateCfg(streamingCfg *StreamingCfg, dbName string, tableList []string) error {
 	dsCfg := streamingCfg.DatastreamCfg
 	if dsCfg.StreamLocation == "" {
 		return fmt.Errorf("please specify DatastreamCfg.StreamLocation in the streaming config")
@@ -109,6 +110,9 @@ func VerifyAndUpdateCfg(streamingCfg *StreamingCfg, dbName string) error {
 		streamingCfg.DatastreamCfg.StreamDisplayName = streamingCfg.DatastreamCfg.StreamId
 	}
 
+	// Populate the tables to be streamed in the datastreamCfg from the dervied list from session file
+	streamingCfg.DatastreamCfg.tableList = append(streamingCfg.DatastreamCfg.tableList, tableList...)
+
 	if dfCfg.JobName == "" {
 		// Update names to have more info like dbname.
 		jobName, err := utils.GenerateName("hb-dataflow-" + dbName)
@@ -142,7 +146,7 @@ func VerifyAndUpdateCfg(streamingCfg *StreamingCfg, dbName string) error {
 }
 
 // ReadStreamingConfig reads the file and unmarshalls it into the StreamingCfg struct.
-func ReadStreamingConfig(file, dbName string) (StreamingCfg, error) {
+func ReadStreamingConfig(file, dbName string, tableList []string) (StreamingCfg, error) {
 	streamingCfg := StreamingCfg{}
 	cfgFile, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -152,26 +156,46 @@ func ReadStreamingConfig(file, dbName string) (StreamingCfg, error) {
 	if err != nil {
 		return streamingCfg, fmt.Errorf("unable to unmarshall json due to: %v", err)
 	}
-	err = VerifyAndUpdateCfg(&streamingCfg, dbName)
+	err = VerifyAndUpdateCfg(&streamingCfg, dbName, tableList)
 	if err != nil {
 		return streamingCfg, fmt.Errorf("streaming config is incomplete: %v", err)
 	}
 	return streamingCfg, nil
 }
 
-func getMysqlSourceStreamConfig(dbName string) *datastreampb.SourceConfig_MysqlSourceConfig {
-	mydb := &datastreampb.MysqlDatabase{
-		Database: dbName,
+// dbName is the name of the database to be migrated.
+// tabeList is the common list of tables that need to be migrated from each database
+func getMysqlSourceStreamConfig(dbName string, tableList []string) *datastreampb.SourceConfig_MysqlSourceConfig {
+	mysqlTables := []*datastreampb.MysqlTable{}
+	for _, table := range tableList {
+		includeTable := &datastreampb.MysqlTable{
+			Table: table,
+		}
+		mysqlTables = append(mysqlTables, includeTable)
+	}
+	fmt.Println("Passed tableList -")
+	fmt.Printf("%v+\n\n", tableList)
+	mysqldb := &datastreampb.MysqlDatabase{
+		Database:    dbName,
+		MysqlTables: mysqlTables,
 	}
 	mysqlSrcCfg := &datastreampb.MysqlSourceConfig{
-		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: []*datastreampb.MysqlDatabase{mydb}},
+		IncludeObjects: &datastreampb.MysqlRdbms{MysqlDatabases: []*datastreampb.MysqlDatabase{mysqldb}},
 	}
 	return &datastreampb.SourceConfig_MysqlSourceConfig{MysqlSourceConfig: mysqlSrcCfg}
 }
 
-func getOracleSourceStreamConfig(dbName string) *datastreampb.SourceConfig_OracleSourceConfig {
+func getOracleSourceStreamConfig(dbName string, tableList []string) *datastreampb.SourceConfig_OracleSourceConfig {
+	oracleTables := []*datastreampb.OracleTable{}
+	for _, table := range tableList {
+		includeTable := &datastreampb.OracleTable{
+			Table: table,
+		}
+		oracleTables = append(oracleTables, includeTable)
+	}
 	oracledb := &datastreampb.OracleSchema{
-		Schema: dbName,
+		Schema:       dbName,
+		OracleTables: oracleTables,
 	}
 	oracleSrcCfg := &datastreampb.OracleSourceConfig{
 		IncludeObjects: &datastreampb.OracleRdbms{OracleSchemas: []*datastreampb.OracleSchema{oracledb}},
@@ -179,7 +203,7 @@ func getOracleSourceStreamConfig(dbName string) *datastreampb.SourceConfig_Oracl
 	return &datastreampb.SourceConfig_OracleSourceConfig{OracleSourceConfig: oracleSrcCfg}
 }
 
-func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceConfig_PostgresqlSourceConfig, error) {
+func getPostgreSQLSourceStreamConfig(properties string, dbName string, tableList []string) (*datastreampb.SourceConfig_PostgresqlSourceConfig, error) {
 	params, err := profiles.ParseMap(properties)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse properties: %v", err)
@@ -190,6 +214,18 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 			Schema: s,
 		})
 	}
+
+	postgresTables := []*datastreampb.PostgresqlTable{}
+	for _, table := range tableList {
+		includeTable := &datastreampb.PostgresqlTable{
+			Table: table,
+		}
+		postgresTables = append(postgresTables, includeTable)
+	}
+	postgresdb := &datastreampb.PostgresqlSchema{
+		Schema:           dbName,
+		PostgresqlTables: postgresTables,
+	}
 	replicationSlot, replicationSlotExists := params["replicationSlot"]
 	publication, publicationExists := params["publication"]
 	if !replicationSlotExists || !publicationExists {
@@ -197,6 +233,7 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 	}
 	postgresSrcCfg := &datastreampb.PostgresqlSourceConfig{
 		ExcludeObjects:  &datastreampb.PostgresqlRdbms{PostgresqlSchemas: excludeObjects},
+		IncludeObjects:  &datastreampb.PostgresqlRdbms{PostgresqlSchemas: []*datastreampb.PostgresqlSchema{postgresdb}},
 		ReplicationSlot: replicationSlot,
 		Publication:     publication,
 	}
@@ -206,14 +243,14 @@ func getPostgreSQLSourceStreamConfig(properties string) (*datastreampb.SourceCon
 func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, sourceProfile profiles.SourceProfile, datastreamCfg DatastreamCfg) error {
 	switch sourceProfile.Driver {
 	case constants.MYSQL:
-		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(sourceProfile.Conn.Mysql.Db)
+		srcCfg.SourceStreamConfig = getMysqlSourceStreamConfig(sourceProfile.Conn.Mysql.Db, datastreamCfg.tableList)
 		return nil
 	case constants.ORACLE:
 		// For Oracle, the User name denotes the name of the schema while the dbName parameter has the SID.
-		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(sourceProfile.Conn.Oracle.User)
+		srcCfg.SourceStreamConfig = getOracleSourceStreamConfig(sourceProfile.Conn.Oracle.User, datastreamCfg.tableList)
 		return nil
 	case constants.POSTGRES:
-		sourceStreamConfig, err := getPostgreSQLSourceStreamConfig(datastreamCfg.Properties)
+		sourceStreamConfig, err := getPostgreSQLSourceStreamConfig(datastreamCfg.Properties, sourceProfile.Conn.Pg.Db, datastreamCfg.tableList)
 		if err == nil {
 			srcCfg.SourceStreamConfig = sourceStreamConfig
 		}
@@ -433,21 +470,21 @@ func createLaunchParameters(dataflowCfg DataflowCfg, inputFilePattern string, pr
 	}
 }
 
-func getStreamingConfig(sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile) (StreamingCfg, error) {
+func getStreamingConfig(sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, tableList []string) (StreamingCfg, error) {
 	switch sourceProfile.Conn.Ty {
 	case profiles.SourceProfileConnectionTypeMySQL:
-		return ReadStreamingConfig(sourceProfile.Conn.Mysql.StreamingConfig, targetProfile.Conn.Sp.Dbname)
+		return ReadStreamingConfig(sourceProfile.Conn.Mysql.StreamingConfig, targetProfile.Conn.Sp.Dbname, tableList)
 	case profiles.SourceProfileConnectionTypeOracle:
-		return ReadStreamingConfig(sourceProfile.Conn.Oracle.StreamingConfig, targetProfile.Conn.Sp.Dbname)
+		return ReadStreamingConfig(sourceProfile.Conn.Oracle.StreamingConfig, targetProfile.Conn.Sp.Dbname, tableList)
 	case profiles.SourceProfileConnectionTypePostgreSQL:
-		return ReadStreamingConfig(sourceProfile.Conn.Pg.StreamingConfig, targetProfile.Conn.Sp.Dbname)
+		return ReadStreamingConfig(sourceProfile.Conn.Pg.StreamingConfig, targetProfile.Conn.Sp.Dbname, tableList)
 	default:
 		return StreamingCfg{}, fmt.Errorf("only MySQL, Oracle and PostgreSQL are supported as source streams")
 	}
 }
 
-func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile) (StreamingCfg, error) {
-	streamingCfg, err := getStreamingConfig(sourceProfile, targetProfile)
+func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, tableList []string) (StreamingCfg, error) {
+	streamingCfg, err := getStreamingConfig(sourceProfile, targetProfile, tableList)
 	if err != nil {
 		return streamingCfg, fmt.Errorf("error reading streaming config: %v", err)
 	}
