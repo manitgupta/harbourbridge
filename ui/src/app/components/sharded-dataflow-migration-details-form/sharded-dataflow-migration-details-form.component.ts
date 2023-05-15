@@ -42,7 +42,7 @@ export class ShardedDataflowMigrationDetailsFormComponent implements OnInit {
     { value: 'form', displayName: 'Form' }
   ]
 
-  schemaShardConfig!: IDbConfig
+  schemaSourceConfig!: IDbConfig
 
   constructor(
     private fetch: FetchService,
@@ -53,7 +53,7 @@ export class ShardedDataflowMigrationDetailsFormComponent implements OnInit {
   ) {
     this.region = data.Region
     this.sourceDatabaseType = data.SourceDatabaseType
-    this.schemaShardConfig = JSON.parse(localStorage.getItem(StorageKeys.Config) as string)
+    this.schemaSourceConfig = JSON.parse(localStorage.getItem(StorageKeys.Config) as string)
     let shardTableRowForm: FormGroup = this.formBuilder.group({
       logicalShardId: ['', Validators.required],
       dbName: ['', Validators.required]
@@ -67,23 +67,23 @@ export class ShardedDataflowMigrationDetailsFormComponent implements OnInit {
       existingSourceProfile: [],
       newTargetProfile: [],
       existingTargetProfile: [],
-      host: [this.schemaShardConfig.hostName, Validators.required],
-      user: [this.schemaShardConfig.userName, Validators.required],
-      port: [this.schemaShardConfig.port, Validators.required],
-      password: [this.schemaShardConfig.password, Validators.required],
+      host: [this.schemaSourceConfig.hostName, Validators.required],
+      user: [this.schemaSourceConfig.userName, Validators.required],
+      port: [this.schemaSourceConfig.port, Validators.required],
+      password: [this.schemaSourceConfig.password, Validators.required],
       dataShardId: ['', Validators.required],
       shardMappingTable: this.formBuilder.array([shardTableRowForm])
     })
 
-    let schemaShard: IDirectConnectionConfig = {
-      host: this.schemaShardConfig.hostName,
-      user: this.schemaShardConfig.userName,
-      password: this.schemaShardConfig.password,
-      port: this.schemaShardConfig.port,
-      dbName: this.schemaShardConfig.dbName
+    let schemaSource: IDirectConnectionConfig = {
+      host: this.schemaSourceConfig.hostName,
+      user: this.schemaSourceConfig.userName,
+      password: this.schemaSourceConfig.password,
+      port: this.schemaSourceConfig.port,
+      dbName: this.schemaSourceConfig.dbName
     }
     let shardConfigurationDataflow: IShardConfigurationDataflow = {
-      schemaShard: schemaShard,
+      schemaSource: schemaSource,
       dataShards: []
     }
     let migrationProfile: IMigrationProfile = {
@@ -228,7 +228,7 @@ export class ShardedDataflowMigrationDetailsFormComponent implements OnInit {
         let dataShard: IDataShard = {
           dataShardId: formValue.dataShardId,
           srcConnectionProfile: srcConnProfile,
-          destConnectionProfile: tgtConnProfile,
+          dstConnectionProfile: tgtConnProfile,
           tmpDir: 'gs://manit-testing/',
           streamLocation: this.region,
           databases: logicalShards

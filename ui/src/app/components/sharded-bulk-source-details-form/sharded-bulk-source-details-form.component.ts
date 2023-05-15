@@ -48,7 +48,7 @@ export class ShardedBulkSourceDetailsFormComponent implements OnInit {
   }
 
   initFromLocalStorage() {
-    let schemaShardConfig: IDbConfig = {
+    let schemaSourceConfig: IDbConfig = {
       dbEngine: '',
       isSharded: '',
       hostName: '',
@@ -58,16 +58,16 @@ export class ShardedBulkSourceDetailsFormComponent implements OnInit {
       dbName: ''
     }
     if (localStorage.getItem(StorageKeys.Config) != null) {
-      schemaShardConfig = JSON.parse(localStorage.getItem(StorageKeys.Config) as string)
+      schemaSourceConfig = JSON.parse(localStorage.getItem(StorageKeys.Config) as string)
     }
     this.directConnectForm = new FormGroup({
       inputType: new FormControl('form', [Validators.required]),
       textInput: new FormControl(''),
-      hostName: new FormControl(schemaShardConfig.hostName, [Validators.required]),
-      port: new FormControl(schemaShardConfig.port, [Validators.required]),
-      userName: new FormControl(schemaShardConfig.userName, [Validators.required]),
-      dbName: new FormControl(schemaShardConfig.dbName, [Validators.required]),
-      password: new FormControl(schemaShardConfig.password),
+      hostName: new FormControl(schemaSourceConfig.hostName, [Validators.required]),
+      port: new FormControl(schemaSourceConfig.port, [Validators.required]),
+      userName: new FormControl(schemaSourceConfig.userName, [Validators.required]),
+      dbName: new FormControl(schemaSourceConfig.dbName, [Validators.required]),
+      password: new FormControl(schemaSourceConfig.password),
     })
   }
 

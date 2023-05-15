@@ -59,14 +59,14 @@ export interface ILogicalShard {
 export interface IDataShard {
     dataShardId: string
     srcConnectionProfile: IDatastreamConnProfile
-    destConnectionProfile: IDatastreamConnProfile
+    dstConnectionProfile: IDatastreamConnProfile
     tmpDir: string
     streamLocation: string
     databases: Array<ILogicalShard>
 }
 
 export interface IShardConfigurationDataflow {
-    schemaShard: IDirectConnectionConfig
+    schemaSource: IDirectConnectionConfig
     dataShards: Array<IDataShard>
 }
 
