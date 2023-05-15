@@ -1872,7 +1872,7 @@ func createConfigFileForShardedBulkMigration(sessionState *session.SessionState,
 	sourceProfileConfig := profiles.SourceProfileConfig{
 		ConfigType: "bulk",
 		ShardConfigurationBulk: profiles.ShardConfigurationBulk{
-			SchemaShard: profiles.DirectConnectionConfig{
+			SchemaSource: profiles.DirectConnectionConfig{
 				Host:     sessionState.SourceDBConnDetails.Host,
 				User:     sessionState.SourceDBConnDetails.User,
 				Password: sessionState.SourceDBConnDetails.Password,

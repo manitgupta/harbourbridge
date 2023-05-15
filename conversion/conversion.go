@@ -316,6 +316,8 @@ func dataFromDatabaseForDMSMigration() (*writer.BatchWriter, error) {
 //5. Perform streaming migration via dataflow
 func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, ctx context.Context, sourceProfile profiles.SourceProfile, conv *internal.Conv) (*writer.BatchWriter, error) {
 	updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
+	conv.Audit.StreamingStats.ShardToDataStreamNameMap = make(map[string]string)
+	conv.Audit.StreamingStats.ShardToDataflowJobMap = make(map[string]string)
 	asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
 		streamingCfg := streaming.CreateStreamingConfig(*p)
 		err := streaming.VerifyAndUpdateCfg(&streamingCfg, targetProfile.Conn.Sp.Dbname)
