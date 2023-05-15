@@ -315,10 +315,9 @@ func dataFromDatabaseForDMSMigration() (*writer.BatchWriter, error) {
 //4. Launch the stream for the physical shard
 //5. Perform streaming migration via dataflow
 func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, ctx context.Context, sourceProfile profiles.SourceProfile, conv *internal.Conv) (*writer.BatchWriter, error) {
+	updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
 	asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
-
 		streamingCfg := streaming.CreateStreamingConfig(*p)
-
 		err := streaming.VerifyAndUpdateCfg(&streamingCfg, targetProfile.Conn.Sp.Dbname)
 		if err != nil {
 			err = fmt.Errorf("failed to process shard: %s, there seems to be an error in the sharding configuration, error: %v", p.DataShardId, err)
