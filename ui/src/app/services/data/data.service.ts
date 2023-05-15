@@ -15,6 +15,7 @@ import { ClickEventService } from '../click-event/click-event.service'
 import { TableUpdatePubSubService } from '../table-update-pub-sub/table-update-pub-sub.service'
 import { ConversionService } from '../conversion/conversion.service'
 import { Dialect } from 'src/app/app.constants'
+import IDbConfig from 'src/app/model/db-config'
 
 @Injectable({
   providedIn: 'root',

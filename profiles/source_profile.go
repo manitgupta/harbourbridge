@@ -469,8 +469,9 @@ type LogicalShard struct {
 }
 
 type ShardConfigurationDataflow struct {
-	SchemaSource DirectConnectionConfig `json:"schemaSource"`
-	DataShards   []*DataShard           `json:"dataShards"`
+	SchemaSource   DirectConnectionConfig `json:"schemaSource"`
+	DataShards     []*DataShard           `json:"dataShards"`
+	DataflowConfig DataflowConfig         `json:"dataflowConfig"`
 }
 
 type ShardConfigurationBulk struct {
@@ -642,7 +643,8 @@ func NewSourceProfile(s string, source string) (SourceProfile, error) {
 }
 
 var filePipedToStdin = func() bool {
-	stat, _ := os.Stdin.Stat()
-	// Data is being piped to stdin, if true. Else, stdin is from a terminal.
-	return (stat.Mode() & os.ModeCharDevice) == 0
+	// stat, _ := os.Stdin.Stat()
+	// // Data is being piped to stdin, if true. Else, stdin is from a terminal.
+	// return (stat.Mode() & os.ModeCharDevice) == 0
+	return false
 }

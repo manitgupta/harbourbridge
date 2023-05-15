@@ -136,6 +136,7 @@ func connectionConfig(sourceProfile profiles.SourceProfile) (interface{}, error)
 		} else {
 			return profiles.GetSQLConnectionStr(sourceProfile), nil
 		}
+
 	// For Dynamodb, both legacy and new flows use env vars.
 	case constants.DYNAMODB:
 		return getDynamoDBClientConfig()
@@ -251,6 +252,12 @@ func snapshotMigrationHandler(sourceProfile profiles.SourceProfile, config write
 		return performSnapshotMigration(config, conv, client, infoSchema), nil
 	default:
 		return &writer.BatchWriter{}, fmt.Errorf("streaming migration not supported for driver %s", sourceProfile.Driver)
+	}
+}
+
+func updateShardsWithDataflowConfig(shardedDataflowConfig profiles.ShardConfigurationDataflow) {
+	for _, dataShard := range shardedDataflowConfig.DataShards {
+		dataShard.DataflowConfig = shardedDataflowConfig.DataflowConfig
 	}
 }
 

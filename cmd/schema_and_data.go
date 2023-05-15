@@ -121,6 +121,7 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		panic(err)
 	}
 	schemaCoversionEndTime := time.Now()
+	fmt.Println("Schema conversion with the new config= flag was done!")
 	conv.Audit.SchemaConversionDuration = schemaCoversionEndTime.Sub(schemaConversionStartTime)
 
 	// Populate migration request id and migration type in conv object.
