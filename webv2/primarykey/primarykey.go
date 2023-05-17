@@ -101,24 +101,27 @@ func addPrimaryKey(add []string, pkRequest PrimaryKeyRequest, spannerTable ddl.C
 					schemaissue := []internal.SchemaIssue{}
 
 					sessionState := session.GetSessionState()
-					schemaissue = sessionState.Conv.SchemaIssues[spannerTable.Name][pkey.ColId]
+					schemaissue = sessionState.Conv.SchemaIssues[spannerTable.Id][pkey.ColId]
 
 					if len(schemaissue) > 0 {
 
 						schemaissue = utilities.RemoveSchemaIssues(schemaissue)
+						if sessionState.Conv.SpSchema[spannerTable.Id].ColDefs[pkey.ColId].Name == "migration_shard_id" {
+							schemaissue = utilities.RemoveSchemaIssue(schemaissue, internal.ShardIdColumnPrimaryKey)
+						}
 
-						sessionState.Conv.SchemaIssues[spannerTable.Name][pkey.ColId] = schemaissue
+						sessionState.Conv.SchemaIssues[spannerTable.Id][pkey.ColId] = schemaissue
 
-						if sessionState.Conv.SchemaIssues[spannerTable.Name][pkey.ColId] == nil {
+						if sessionState.Conv.SchemaIssues[spannerTable.Id][pkey.ColId] == nil {
 
 							s := map[string][]internal.SchemaIssue{
 								pkey.ColId: schemaissue,
 							}
 							sessionState.Conv.SchemaIssues = map[string]map[string][]internal.SchemaIssue{}
 
-							sessionState.Conv.SchemaIssues[spannerTable.Name] = s
+							sessionState.Conv.SchemaIssues[spannerTable.Id] = s
 						} else {
-							sessionState.Conv.SchemaIssues[spannerTable.Name][pkey.ColId] = schemaissue
+							sessionState.Conv.SchemaIssues[spannerTable.Id][pkey.ColId] = schemaissue
 						}
 
 					}
@@ -145,24 +148,27 @@ func removePrimaryKey(remove []string, spannerTable ddl.CreateTable) []ddl.Index
 				{
 					schemaissue := []internal.SchemaIssue{}
 					sessionState := session.GetSessionState()
-					schemaissue = sessionState.Conv.SchemaIssues[spannerTable.Name][spannerTable.PrimaryKeys[i].ColId]
+					schemaissue = sessionState.Conv.SchemaIssues[spannerTable.Id][spannerTable.PrimaryKeys[i].ColId]
 
 					if len(schemaissue) > 0 {
 
 						schemaissue = utilities.RemoveSchemaIssues(schemaissue)
+						if sessionState.Conv.SpSchema[spannerTable.Id].ColDefs[spannerTable.PrimaryKeys[i].ColId].Name == "migration_shard_id" {
+							schemaissue = append(schemaissue, internal.ShardIdColumnPrimaryKey)
+						}
 
-						if sessionState.Conv.SchemaIssues[spannerTable.Name][spannerTable.PrimaryKeys[i].ColId] == nil {
+						if sessionState.Conv.SchemaIssues[spannerTable.Id][spannerTable.PrimaryKeys[i].ColId] == nil {
 
 							s := map[string][]internal.SchemaIssue{
 								spannerTable.PrimaryKeys[i].ColId: schemaissue,
 							}
 							sessionState.Conv.SchemaIssues = map[string]map[string][]internal.SchemaIssue{}
 
-							sessionState.Conv.SchemaIssues[spannerTable.Name] = s
+							sessionState.Conv.SchemaIssues[spannerTable.Id] = s
 
 						} else {
 
-							sessionState.Conv.SchemaIssues[spannerTable.Name][spannerTable.PrimaryKeys[i].ColId] = schemaissue
+							sessionState.Conv.SchemaIssues[spannerTable.Id][spannerTable.PrimaryKeys[i].ColId] = schemaissue
 
 						}
 

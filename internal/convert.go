@@ -96,6 +96,8 @@ const (
 	InterleavedAddColumn
 	IllegalName
 	InterleavedRenameColumn
+	ShardIdColumnAdded
+	ShardIdColumnPrimaryKey
 )
 
 // NameAndCols contains the name of a table and its columns.
@@ -161,16 +163,16 @@ type Audit struct {
 
 // Stores information related to the streaming migration process.
 type streamingStats struct {
-	Streaming        bool                        // Flag for confirmation of streaming migration.
-	TotalRecords     map[string]map[string]int64 // Tablewise count of records received for processing, broken down by record type i.e. INSERT, MODIFY & REMOVE.
-	BadRecords       map[string]map[string]int64 // Tablewise count of records not converted successfully, broken down by record type.
-	DroppedRecords   map[string]map[string]int64 // Tablewise count of records successfully converted but failed to written on Spanner, broken down by record type.
-	SampleBadRecords []string                    // Records that generated errors during conversion.
-	SampleBadWrites  []string                    // Records that faced errors while writing to Cloud Spanner.
-	DataStreamName   string
-	DataflowJobId    string
+	Streaming                bool                        // Flag for confirmation of streaming migration.
+	TotalRecords             map[string]map[string]int64 // Tablewise count of records received for processing, broken down by record type i.e. INSERT, MODIFY & REMOVE.
+	BadRecords               map[string]map[string]int64 // Tablewise count of records not converted successfully, broken down by record type.
+	DroppedRecords           map[string]map[string]int64 // Tablewise count of records successfully converted but failed to written on Spanner, broken down by record type.
+	SampleBadRecords         []string                    // Records that generated errors during conversion.
+	SampleBadWrites          []string                    // Records that faced errors while writing to Cloud Spanner.
+	DataStreamName           string
+	DataflowJobId            string
 	ShardToDataStreamNameMap map[string]string
-	ShardToDataflowJobMap map[string]string
+	ShardToDataflowJobMap    map[string]string
 }
 
 // Stores information related to rules during schema conversion
@@ -367,6 +369,19 @@ func (conv *Conv) AddPrimaryKeys() {
 			}
 			conv.SpSchema[t] = ct
 		}
+	}
+}
+
+func (conv *Conv) AddShardIdColumn() {
+	for t, ct := range conv.SpSchema {
+		colName := "migration_shard_id"
+		columnId := GenerateColumnId()
+		ct.ColIds = append(ct.ColIds, columnId)
+		ct.ColDefs[columnId] = ddl.ColumnDef{Name: colName, Id: columnId, T: ddl.Type{Name: ddl.String, Len: 50}, NotNull: true}
+		conv.SpSchema[t] = ct
+		var issues []SchemaIssue
+		issues = append(issues, ShardIdColumnAdded, ShardIdColumnPrimaryKey)
+		conv.SchemaIssues[ct.Id][columnId] = issues
 	}
 }
 
