@@ -20,7 +20,6 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.9.0
-	github.com/pganalyze/pg_query_go/v2 v2.2.0
 	github.com/pingcap/tidb v1.1.0-beta.0.20230918090611-71bcc44f77a3
 	github.com/pingcap/tidb/parser v0.0.0-20230918090611-71bcc44f77a3
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
@@ -75,6 +74,7 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/opentracing/basictracer-go v1.0.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/pganalyze/pg_query_go/v4 v4.2.3
 	github.com/pingcap/errors v0.11.5-0.20220729040631-518f63d66278 // indirect
 	github.com/pingcap/failpoint v0.0.0-20220423142525-ae43b7f4e5c3 // indirect
 	github.com/pingcap/kvproto v0.0.0-20230726063044-73d6d7f3756b // indirect
