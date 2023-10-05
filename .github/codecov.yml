@@ -6,7 +6,7 @@ component_management:
       - type: project # in this case every component that doens't have a status defined will have a project type one
         target: auto
         base: auto
-        threshold: 50%
+        threshold: 5%
         branches:
           - master
   individual_components:
@@ -27,4 +27,3 @@ component_management:
         - type: project
           target: auto
           base: auto
-          threshold: 0%
