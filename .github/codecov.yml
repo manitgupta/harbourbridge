@@ -1,5 +1,5 @@
 comment:
-  layout: "header, diff, components" # show component info in the PR comment
+  layout: "header, diff, components, files" # show component info in the PR comment
 component_management:
   default_rules: # default rules that will be inherited by all components
     statuses:
@@ -27,7 +27,7 @@ component_management:
         - type: project
           target: auto
     - component_id: cli 
-      name: cli 
+      name: cli # only the CLI
       paths:
         - "cmd/**"
         - "webv2/webCmd.go"
@@ -35,7 +35,7 @@ component_management:
         - type: project
           target: auto
     - component_id: frontend
-      name: frontend
+      name: frontend # only frontend components
       paths:
         - ui/**
       statuses: # the core component has its own statuses
