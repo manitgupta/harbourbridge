@@ -51,34 +51,3 @@ jobs:
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        comment:
-          layout: "header, diff, components" # show component info in the PR comment
-
-        component_management:
-          default_rules: # default rules that will be inherited by all components
-            statuses:
-              - type: project # in this case every component that doens't have a status defined will have a project type one
-                target: auto
-                base: auto
-                threshold: 50%
-                branches:
-                  - master
-          individual_components:
-            - component_id: backend-apis # this is an identifier that should not be changed
-              name: backend-apis # this is a display name, and can be changed freely
-              paths:
-                - "webv2/**"
-            - component_id: backend-library
-              name: backend-library
-              paths:
-                - "!webv2/**"
-                - "!ui/**"
-            - component_id: frontend
-              name: frontend
-              paths:
-                - ui/**
-              statuses: # the core component has its own statuses
-                - type: project
-                  target: auto
-                  base: auto
-                  threshold: 0%
