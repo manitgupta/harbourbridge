@@ -5,7 +5,6 @@ component_management:
     statuses:
       - type: project # in this case every component that doens't have a status defined will have a project type one
         target: auto
-        base: auto
         threshold: 5%
         branches:
           - master
@@ -14,11 +13,17 @@ component_management:
       name: backend-apis # this is a display name, and can be changed freely
       paths:
         - "webv2/**"
+      statuses: # the core component has its own statuses
+        - type: project
+          target: auto
     - component_id: backend-library
       name: backend-library
       paths:
         - "!webv2/**"
         - "!ui/**"
+      statuses: # the core component has its own statuses
+        - type: project
+          target: auto
     - component_id: frontend
       name: frontend
       paths:
@@ -26,4 +31,3 @@ component_management:
       statuses: # the core component has its own statuses
         - type: project
           target: auto
-          base: auto
