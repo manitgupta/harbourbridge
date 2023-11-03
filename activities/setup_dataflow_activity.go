@@ -21,7 +21,11 @@ func SetupDataflowActivity(ctx context.Context, input activityModel.SetupDataflo
 
 	//Step 1. Stage needed files in GCS before starting Dataflow. 
 	gcsClient := storageAccessor.GetInstance(ctx)
+	fmt.Println("Writing session.json to GCS")
 	err = storageAccessor.WriteToGCS(ctx, gcsClient, input.StreamingCfg.TmpDir, "session.json", string(convJSON))
+	if err != nil {
+		return activityModel.SetupDataflowActivityOutput{}, fmt.Errorf("failed to write session.json to GCS: %s", err.Error())
+	}
 	transformationContextMap := map[string]interface{}{
 		"SchemaToShardId": input.StreamingCfg.DataflowCfg.DbNameToShardIdMap,
 	}
@@ -29,9 +33,10 @@ func SetupDataflowActivity(ctx context.Context, input activityModel.SetupDataflo
 	if err != nil {
 		return activityModel.SetupDataflowActivityOutput{}, fmt.Errorf("failed to compute transformation context: %s", err.Error())
 	}
+	fmt.Println("Writing transformationContext.json to GCS")
 	err = storageAccessor.WriteToGCS(ctx, gcsClient, input.StreamingCfg.TmpDir, "transformationContext.json", string(transformationContext))
 	if err != nil {
-		return activityModel.SetupDataflowActivityOutput{}, fmt.Errorf("error while writing to GCS: %v", err)
+		return activityModel.SetupDataflowActivityOutput{}, fmt.Errorf("error while writing transformationContext.json to GCS: %v", err)
 	}
 	// Step 2. Get path of destination GCS from Datastream
 	datastreamClient := datastreamAccessor.GetInstance(ctx)

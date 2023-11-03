@@ -15,6 +15,7 @@ import (
 func ReadSessionFile(sessionFilePath string) (conv *internal.Conv, err error) {
 	s, err := os.ReadFile(sessionFilePath)
 	if err != nil {
+		fmt.Printf("Error reading session file: %v\n", err)
 		return nil, err
 	}
 	err = json.Unmarshal(s, &conv)

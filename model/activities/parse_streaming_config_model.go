@@ -5,12 +5,12 @@ import (
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/streaming"
 )
 
-type ParseJobConfigActivityInput struct {
-	JobConfigFilePath string
-	TargetDbName      string
-	Conv *internal.Conv
+type ValidateJobConfigActivityInput struct {
+	StreamingCfg streaming.StreamingCfg
+	TargetDbName string
+	Conv         *internal.Conv
 }
 
-type ParseJobConfigActivityOutput struct {
+type ValidateJobConfigActivityOutput struct {
 	StreamingCfg streaming.StreamingCfg
 }

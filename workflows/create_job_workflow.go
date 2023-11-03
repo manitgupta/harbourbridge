@@ -39,55 +39,55 @@ func CreateJobWorkflow(ctx workflow.Context, createJobWorkflowInput workflowMode
 	err = workflow.ExecuteActivity(ctx, activities.ValidateSchemaActivity, validateSchemaActivityInput).Get(ctx, &validateSchemaActivityOutput)
 	if err != nil {
 		fmt.Printf("Validation failed with error: %v\n", err)
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
 	//Step 3. Parse streaming config
-	parseJobConfigActivityInput, err := converters.GenerateParseJobConfigActivityInput(createJobWorkflowInput, createConvActivityOutput)
+	validateJobConfigActivityInput, err := converters.GenerateValidateJobConfigActivityInput(createJobWorkflowInput, createConvActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
-	var parseJobConfigActivityOutput activityModel.ParseJobConfigActivityOutput
-	err = workflow.ExecuteActivity(ctx, activities.ParseJobConfigActivity, parseJobConfigActivityInput).Get(ctx, &parseJobConfigActivityOutput)
+	var validateJobConfigActivityOutput activityModel.ValidateJobConfigActivityOutput
+	err = workflow.ExecuteActivity(ctx, activities.ValidateJobConfigActivity, validateJobConfigActivityInput).Get(ctx, &validateJobConfigActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
 	//Step 4. Setup pubsub resources
-	setupPubSubActivityInput, err := converters.GenerateSetupPubSubActivityInput(createJobWorkflowInput, parseJobConfigActivityOutput)
+	setupPubSubActivityInput, err := converters.GenerateSetupPubSubActivityInput(createJobWorkflowInput, validateJobConfigActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
 	var setupPubSubActivityOutput activityModel.SetupPubSubActivityOutput
 	err = workflow.ExecuteActivity(ctx, activities.SetupPubSubActivity, setupPubSubActivityInput).Get(ctx, &setupPubSubActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
 	// Step 5. Setup Datastream
-	setupDatastreamActivityInput, err := converters.GenerateSetupDatastreamActivityInput(createJobWorkflowInput, parseJobConfigActivityOutput)
+	setupDatastreamActivityInput, err := converters.GenerateSetupDatastreamActivityInput(createJobWorkflowInput, validateJobConfigActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
 	var setupDatastreamActivityOutput activityModel.SetupDatastreamActivityOutput
 	err = workflow.ExecuteActivity(ctx, activities.SetupDatastreamActivity, setupDatastreamActivityInput).Get(ctx, &setupDatastreamActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 	// Step 6. Setup Dataflow
-	setupDataflowActivityInput, err := converters.GenerateSetupDataflowActivityInput(createJobWorkflowInput, createConvActivityOutput, parseJobConfigActivityOutput)
+	setupDataflowActivityInput, err := converters.GenerateSetupDataflowActivityInput(createJobWorkflowInput, createConvActivityOutput, setupPubSubActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
-	
+
 	var setupDataflowActivityOutput activityModel.SetupDataflowActivityOutput
 	err = workflow.ExecuteActivity(ctx, activities.SetupDataflowActivity, setupDataflowActivityInput).Get(ctx, &setupDataflowActivityOutput)
 	if err != nil {
-		return workflowModel.CreateJobWorkflowOutput{}, err
+		return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "ERROR"}, err
 	}
 
-	return workflowModel.CreateJobWorkflowOutput{}, nil
+	return workflowModel.CreateJobWorkflowOutput{WorkflowStatus: "SUCCESS"}, nil
 }

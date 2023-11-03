@@ -1,7 +1,6 @@
 package activities
 
 import (
-	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/streaming"
 )
 
@@ -9,7 +8,8 @@ type SetupPubSubActivityInput struct {
 	GcpProjectId         string
 	GcsConnectionProfile streaming.DstConnCfg
 	SourceDbName         string
+	StreamingCfg streaming.StreamingCfg
 }
 type SetupPubSubActivityOutput struct{
-	PubsubCfg internal.PubsubCfg
+	streaming.StreamingCfg
 }

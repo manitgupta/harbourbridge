@@ -15,7 +15,7 @@ func SetupDatastreamActivity(ctx context.Context, input activityModel.SetupDatas
 	prefix := input.DatastreamCfg.DestinationConnectionConfig.Prefix
 	prefix = utils.ConcatDirectoryPath(prefix, "data")
 	//Step 1. First create the datastream
-	err := datastreamAccessor.CreateStream(ctx, datastreamClient, input.GcpProjectId, prefix, input.SourceDatabaseName, input.SourceDatabaseName, input.DatastreamCfg)
+	err := datastreamAccessor.CreateStream(ctx, datastreamClient, input.GcpProjectId, prefix, input.SourceDatabaseType, input.SourceDatabaseName, input.DatastreamCfg)
 	if err != nil {
 		fmt.Printf("Error creating datastream: %v\n", err)
 		return activityModel.SetupDataflowActivityOutput{}, err

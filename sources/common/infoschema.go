@@ -101,13 +101,13 @@ func GenerateSrcSchema(conv *internal.Conv, infoSchema InfoSchema, numWorkers in
 		res := TaskResult[SchemaAndName]{t, e}
 		return res
 	}
-
+	fmt.Println("Running parallel tasks")
 	res, e := RunParallelTasks(tables, numWorkers, asyncProcessTable, true)
 	if e != nil {
 		fmt.Printf("exiting due to error: %s , while processing schema for table %s\n", e, res)
 		return 0, e
 	}
-
+	fmt.Println("Collected results")
 	internal.ResolveForeignKeyIds(conv.SrcSchema)
 	return len(tables), nil
 }

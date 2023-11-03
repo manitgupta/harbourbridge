@@ -7,6 +7,6 @@ import (
 
 func GenerateCreateConvActivityInput(createJobWorkflowInput workflowModel.CreateJobWorkflowInput) (activityModel.CreateConvActivityInput, error) {
 	return activityModel.CreateConvActivityInput{
-		SessionFilePath: createJobWorkflowInput.SessionFilePath,
+		Conv: createJobWorkflowInput.Conv,
 	}, nil
 }

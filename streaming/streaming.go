@@ -163,6 +163,27 @@ func VerifyAndUpdateCfg(streamingCfg *StreamingCfg, dbName string, tableList []s
 	return nil
 }
 
+func ReadStreamingConfigFile(file string) (StreamingCfg, error) {
+	streamingCfg := StreamingCfg{}
+	cfgFile, err := ioutil.ReadFile(file)
+	if err != nil {
+		return streamingCfg, fmt.Errorf("can't read streaming config file due to: %v", err)
+	}
+	err = json.Unmarshal(cfgFile, &streamingCfg)
+	if err != nil {
+		return streamingCfg, fmt.Errorf("unable to unmarshall json due to: %v", err)
+	}
+	return streamingCfg, nil
+}
+
+func ValidateStreamingConfig(streamingCfg *StreamingCfg, dbName string, tableList []string) (*StreamingCfg, error) {
+	err := VerifyAndUpdateCfg(streamingCfg, dbName, tableList)
+	if err != nil {
+		return streamingCfg, fmt.Errorf("streaming config is incomplete: %v", err)
+	}
+	return streamingCfg, nil
+}
+
 // ReadStreamingConfig reads the file and unmarshalls it into the StreamingCfg struct.
 func ReadStreamingConfig(file, dbName string, tableList []string) (StreamingCfg, error) {
 	streamingCfg := StreamingCfg{}

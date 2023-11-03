@@ -5,7 +5,7 @@ import (
 )
 
 type CreateConvActivityInput struct {
-	SessionFilePath string
+	Conv *internal.Conv
 }
 
 type CreateConvActivityOutput struct {

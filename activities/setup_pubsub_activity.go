@@ -41,5 +41,6 @@ func SetupPubSubActivity(ctx context.Context, input activityModel.SetupPubSubAct
 	pubsubCfg.BucketName = bucketName
 	pubsubCfg.NotificationId = notificationID
 	fmt.Printf("Successfully created pubsub topic id=%s, subscription id=%s, notification for bucket=%s with id=%s.\n", pubsubCfg.TopicId, pubsubCfg.SubscriptionId, bucketName, notificationID)
-	return activityModel.SetupPubSubActivityOutput{PubsubCfg: pubsubCfg}, nil
+	input.StreamingCfg.PubsubCfg = pubsubCfg
+	return activityModel.SetupPubSubActivityOutput{StreamingCfg: input.StreamingCfg}, nil
 }
