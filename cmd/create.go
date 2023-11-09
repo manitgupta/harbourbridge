@@ -31,6 +31,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		//TODO: Remove logger
 		logger.InitializeLogger("INFO")
 		jobId := args[0]
 		jobConfigFilePath, _ := cmd.Flags().GetString("jobConfigFilePath")
@@ -42,7 +43,7 @@ to quickly create a Cobra application.`,
 		// Create the client object just once per process
 		c, err := client.Dial(client.Options{})
 		if err != nil {
-			fmt.Printf("unable to create Temporal client = %v \n", err)
+			utils.ERROR_PRINT("unable to create Temporal client = %v \n", err)
 			os.Exit(1)
 		}
 		defer c.Close()
@@ -54,28 +55,22 @@ to quickly create a Cobra application.`,
 
 		targetProfile, err := profiles.NewTargetProfile(targetDetails)
 		if err != nil {
-			fmt.Printf("Error parsing target profile = %v \n", err)
+			utils.ERROR_PRINT("Error parsing target profile = %v \n", err)
 			os.Exit(1)
 		}
 
 		conv, err := utils.ReadSessionFile(sessionFilePath)
 		if err != nil {
-			fmt.Printf("Error reading session file = %v \n", err)
+			utils.ERROR_PRINT("Error reading session file = %v \n", err)
 			os.Exit(1)
 		}
 
 		streamingCfg, err := streaming.ReadStreamingConfigFile(jobConfigFilePath)
 		if err != nil {
-			fmt.Printf("Error reading job config file = %v \n", err)
+			utils.ERROR_PRINT("Error reading job config file = %v \n", err)
 			os.Exit(1)
 		}
-
-		fmt.Printf("Parsed inputs - ")
-		fmt.Printf("jobId = %s \n", jobId)
-		fmt.Printf("jobConfig = %s \n", streamingCfg)
-		fmt.Printf("targetDetails = %s \n", targetDetails)
-		fmt.Printf("Conv = %s \n", conv)
-		fmt.Print("Starting workflow...\n")
+		utils.SUCCESS_PRINT("All parameters are valid! Initiating workflow to create the migration job...\n")
 		//Convert CLI input into the Workflow input
 		createJobWorkflowInput := workflowModel.CreateJobWorkflowInput{
 			JobId:              jobId,
@@ -98,6 +93,9 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			fmt.Printf("unable to get Workflow result = %v \n", err)
 			os.Exit(1)
+		}
+		if (createJobWorkflowOutput.WorkflowStatus == "SUCCESS") {
+			utils.SUCCESS_PRINT("Spanner migration tool has orchestrated the migration job. It is safe to exit this screen. The migration will continue to run on GCP.\n")
 		}
 		os.Exit(0)
 	},

@@ -23,6 +23,7 @@ func main() {
 
 	// This worker hosts both Workflow and Activity functions
 	w := worker.New(c, constants.CREATE_WORKFLOW_QUEUE, worker.Options{})
+	worker.EnableVerboseLogging(false)
 	w.RegisterWorkflow(workflows.CreateJobWorkflow)
 	w.RegisterActivity(activities.CreateConvActivity)
 	w.RegisterActivity(activities.ValidateSchemaActivity)
