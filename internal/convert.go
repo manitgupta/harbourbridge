@@ -209,6 +209,16 @@ type streamingStats struct {
 	ShardToPubsubIdMap       map[string]PubsubCfg
 }
 
+type GeneratedResources struct {
+	MigrationJobId string
+	DataShardId string
+	DataflowResources string
+	DatastreamResources string
+	PubsubResources string
+	SpannerDatabaseName string
+	CreateTimestamp        time.Time
+}
+
 type PubsubCfg struct {
 	TopicId        string
 	SubscriptionId string

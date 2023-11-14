@@ -99,6 +99,9 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		return subcommands.ExitFailure
 	}
 	defer logger.Log.Sync()
+	//Generate a job Id
+	migrationJobId, err := utils.GenerateName("smt-job")
+	fmt.Printf("Creating a migration job with id: %v. This jobId can be used in future commmands (such as cleanup) to refer to this job.\n", migrationJobId)
 	// validate and parse source-profile, target-profile and source
 	sourceProfile, targetProfile, ioHelper, dbName, err := PrepareMigrationPrerequisites(cmd.sourceProfile, cmd.targetProfile, cmd.source)
 	if err != nil {
@@ -163,6 +166,11 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 	conversion.Report(sourceProfile.Driver, bw.DroppedRowsByTable(), ioHelper.BytesRead, banner, conv, cmd.filePrefix, dbName, ioHelper.Out)
 	conversion.WriteBadData(bw, conv, banner, cmd.filePrefix+badDataFile, ioHelper.Out)
 
+	//store the generated resources
+	err = StoreGeneratedResources(ctx, targetProfile, sourceProfile, dbName, &ioHelper, conv, migrationJobId)
+	if err != nil {
+		fmt.Println("Error storing generated resources in SMT metadata store...the migration job will still continue as intended.", err)
+	}
 	// Cleanup smt tmp data directory.
 	os.RemoveAll(filepath.Join(os.TempDir(), constants.SMT_TMP_DIR))
 	return subcommands.ExitSuccess

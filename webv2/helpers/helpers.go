@@ -81,12 +81,13 @@ func createDatabase(ctx context.Context, uri string) error {
 			  ) PRIMARY KEY(VersionId)`,
 			  `CREATE TABLE GeneratedResources (
 				MigrationJobId STRING(36) NOT NULL,
-				DataflowResources ARRAY<JSON> NOT NULL,
-				DatastreamResources ARRAY<JSON> NOT NULL,
-				PubsubResources ARRAY<JSON> NOT NULL,
+				DataShardId STRING(36) NOT NULL,
+				DataflowResources JSON NOT NULL,
+				DatastreamResources STRING(36) NOT NULL,
+				PubsubResources JSON NOT NULL,
 				SpannerDatabaseName STRING(36) NOT NULL,
 				CreateTimestamp TIMESTAMP NOT NULL,
-			  ) PRIMARY KEY(MigrationJobId)`,
+			  ) PRIMARY KEY(MigrationJobId, DataShardId)`,
 		},
 	})
 	if err != nil {
