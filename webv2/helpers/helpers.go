@@ -79,6 +79,14 @@ func createDatabase(ctx context.Context, uri string) error {
 				SchemaConversionObject JSON NOT NULL,
 				CreateTimestamp TIMESTAMP NOT NULL,
 			  ) PRIMARY KEY(VersionId)`,
+			  `CREATE TABLE GeneratedResources (
+				MigrationJobId STRING(36) NOT NULL,
+				DataflowResources ARRAY<JSON> NOT NULL,
+				DatastreamResources ARRAY<JSON> NOT NULL,
+				PubsubResources ARRAY<JSON> NOT NULL,
+				SpannerDatabaseName STRING(36) NOT NULL,
+				CreateTimestamp TIMESTAMP NOT NULL,
+			  ) PRIMARY KEY(MigrationJobId)`,
 		},
 	})
 	if err != nil {
