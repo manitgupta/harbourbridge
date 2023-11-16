@@ -2277,35 +2277,35 @@ func getGeneratedResources(w http.ResponseWriter, r *http.Request) {
 	generatedResources.ShardToDatastreamMap = make(map[string]ResourceDetails)
 	generatedResources.ShardToPubsubTopicMap = make(map[string]ResourceDetails)
 	generatedResources.ShardToPubsubSubscriptionMap = make(map[string]ResourceDetails)
-	if sessionState.Conv.Audit.StreamingStats.DatastreamCfg.DatastreamName != "" {
-		generatedResources.DataStreamJobName = sessionState.Conv.Audit.StreamingStats.DatastreamCfg.DatastreamName
-		generatedResources.DataStreamJobUrl = fmt.Sprintf("https://console.cloud.google.com/datastream/streams/locations/%v/instances/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DatastreamCfg.DatastreamName, sessionState.GCPProjectID)
+	if sessionState.Conv.Audit.StreamingStats.DatastreamResources.DatastreamName != "" {
+		generatedResources.DataStreamJobName = sessionState.Conv.Audit.StreamingStats.DatastreamResources.DatastreamName
+		generatedResources.DataStreamJobUrl = fmt.Sprintf("https://console.cloud.google.com/datastream/streams/locations/%v/instances/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DatastreamResources.DatastreamName, sessionState.GCPProjectID)
 	}
-	if sessionState.Conv.Audit.StreamingStats.DataflowCfg.JobId != "" {
-		generatedResources.DataflowJobName = sessionState.Conv.Audit.StreamingStats.DataflowCfg.JobId
-		generatedResources.DataflowJobUrl = fmt.Sprintf("https://console.cloud.google.com/dataflow/jobs/%v/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DataflowCfg.JobId, sessionState.GCPProjectID)
-		generatedResources.DataflowGcloudCmd = sessionState.Conv.Audit.StreamingStats.DataflowCfg.GcloudCmd
+	if sessionState.Conv.Audit.StreamingStats.DataflowResources.JobId != "" {
+		generatedResources.DataflowJobName = sessionState.Conv.Audit.StreamingStats.DataflowResources.JobId
+		generatedResources.DataflowJobUrl = fmt.Sprintf("https://console.cloud.google.com/dataflow/jobs/%v/%v?project=%v", sessionState.Region, sessionState.Conv.Audit.StreamingStats.DataflowResources.JobId, sessionState.GCPProjectID)
+		generatedResources.DataflowGcloudCmd = sessionState.Conv.Audit.StreamingStats.DataflowResources.GcloudCmd
 	}
-	if sessionState.Conv.Audit.StreamingStats.PubsubCfg.TopicId != "" {
-		generatedResources.PubsubTopicName = sessionState.Conv.Audit.StreamingStats.PubsubCfg.TopicId
-		generatedResources.PubsubTopicUrl = fmt.Sprintf("https://console.cloud.google.com/cloudpubsub/topic/detail/%v?project=%v", sessionState.Conv.Audit.StreamingStats.PubsubCfg.TopicId, sessionState.GCPProjectID)
+	if sessionState.Conv.Audit.StreamingStats.PubsubResources.TopicId != "" {
+		generatedResources.PubsubTopicName = sessionState.Conv.Audit.StreamingStats.PubsubResources.TopicId
+		generatedResources.PubsubTopicUrl = fmt.Sprintf("https://console.cloud.google.com/cloudpubsub/topic/detail/%v?project=%v", sessionState.Conv.Audit.StreamingStats.PubsubResources.TopicId, sessionState.GCPProjectID)
 	}
-	if sessionState.Conv.Audit.StreamingStats.PubsubCfg.SubscriptionId != "" {
-		generatedResources.PubsubSubscriptionName = sessionState.Conv.Audit.StreamingStats.PubsubCfg.SubscriptionId
-		generatedResources.PubsubSubscriptionUrl = fmt.Sprintf("https://console.cloud.google.com/cloudpubsub/subscription/detail/%v?project=%v", sessionState.Conv.Audit.StreamingStats.PubsubCfg.SubscriptionId, sessionState.GCPProjectID)
+	if sessionState.Conv.Audit.StreamingStats.PubsubResources.SubscriptionId != "" {
+		generatedResources.PubsubSubscriptionName = sessionState.Conv.Audit.StreamingStats.PubsubResources.SubscriptionId
+		generatedResources.PubsubSubscriptionUrl = fmt.Sprintf("https://console.cloud.google.com/cloudpubsub/subscription/detail/%v?project=%v", sessionState.Conv.Audit.StreamingStats.PubsubResources.SubscriptionId, sessionState.GCPProjectID)
 	}
-	for shardId, dsCfg := range sessionState.Conv.Audit.StreamingStats.ShardToDataStreamInfoMap {
+	for shardId, dsCfg := range sessionState.Conv.Audit.StreamingStats.ShardToDataStreamResourcesMap {
 		url := fmt.Sprintf("https://console.cloud.google.com/datastream/streams/locations/%v/instances/%v?project=%v", sessionState.Region, dsCfg, sessionState.GCPProjectID)
 		resourceDetails := ResourceDetails{JobName: dsCfg.DatastreamName, JobUrl: url}
 		generatedResources.ShardToDatastreamMap[shardId] = resourceDetails
 	}
-	for shardId, shardedDataflowJobResources := range sessionState.Conv.Audit.StreamingStats.ShardToDataflowInfoMap {
+	for shardId, shardedDataflowJobResources := range sessionState.Conv.Audit.StreamingStats.ShardToDataflowResourcesMap {
 		dfId := shardedDataflowJobResources.JobId
 		url := fmt.Sprintf("https://console.cloud.google.com/dataflow/jobs/%v/%v?project=%v", sessionState.Region, dfId, sessionState.GCPProjectID)
 		resourceDetails := ResourceDetails{JobName: dfId, JobUrl: url, GcloudCmd: shardedDataflowJobResources.GcloudCmd}
 		generatedResources.ShardToDataflowMap[shardId] = resourceDetails
 	}
-	for shardId, pubsubId := range sessionState.Conv.Audit.StreamingStats.ShardToPubsubIdMap {
+	for shardId, pubsubId := range sessionState.Conv.Audit.StreamingStats.ShardToPubsubResourcesMap {
 		topicUrl := fmt.Sprintf("https://console.cloud.google.com/cloudpubsub/topic/detail/%v?project=%v", pubsubId.TopicId, sessionState.GCPProjectID)
 		topicResourceDetails := ResourceDetails{JobName: pubsubId.TopicId, JobUrl: topicUrl}
 		generatedResources.ShardToPubsubTopicMap[shardId] = topicResourceDetails

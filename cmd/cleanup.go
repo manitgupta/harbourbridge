@@ -113,7 +113,7 @@ func initiateCleanup(ctx context.Context, cmd *CleanupCmd, generatedResources in
 		}
 		defer c.Close()
 		logger.Log.Debug("Created dataflow job client...")
-		var dataflowResources internal.DataflowCfg
+		var dataflowResources internal.DataflowResources
 		err = json.Unmarshal([]byte(generatedResources.DataflowResources), &dataflowResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Dataflow metadata for deletion\n")
@@ -134,7 +134,7 @@ func initiateCleanup(ctx context.Context, cmd *CleanupCmd, generatedResources in
 			return fmt.Errorf("datastream client can not be created: %v", err)
 		}
 		defer dsClient.Close()
-		var datastreamResources internal.DatastreamCfg
+		var datastreamResources internal.DatastreamResources
 		err = json.Unmarshal([]byte(generatedResources.DatastreamResources), &datastreamResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Datastream metadata for deletion\n")
@@ -160,7 +160,7 @@ func initiateCleanup(ctx context.Context, cmd *CleanupCmd, generatedResources in
 			return fmt.Errorf("storage client cannot be created: %v", err)
 		}
 		defer storageClient.Close()
-		var pubsubCfg internal.PubsubCfg
+		var pubsubCfg internal.PubsubResources
 		err = json.Unmarshal([]byte(generatedResources.PubsubResources), &pubsubCfg)
 		if err != nil {
 			fmt.Printf("Unable to read Pubsub metadata for deletion\n")

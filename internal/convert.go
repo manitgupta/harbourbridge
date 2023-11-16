@@ -186,32 +186,42 @@ type Audit struct {
 	SkipMetricsPopulation    bool                                   `json:"-"` // Flag to identify if outgoing metrics metadata needs to skipped
 }
 
-// Stores information related to resources.
-type DataflowCfg struct {
+// Stores information related to generated Dataflow Resources.
+type DataflowResources struct {
 	JobId     string `json:"JobId"`
 	GcloudCmd string `json:"GcloudCmd"`
 	Region    string `json:"Region"`
 }
 
-type DatastreamCfg struct {
+// Stores information related to generated Datastream Resources.
+type DatastreamResources struct {
 	DatastreamName string `json:"DatastreamName"`
 	Region         string `json:"Region"`
 }
 
+// Stores information related to generated Pubsub Resources.
+type PubsubResources struct {
+	TopicId        string
+	SubscriptionId string
+	NotificationId string
+	BucketName     string
+	Region         string
+}
+
 // Stores information related to the streaming migration process.
 type streamingStats struct {
-	Streaming                bool                        // Flag for confirmation of streaming migration.
-	TotalRecords             map[string]map[string]int64 // Tablewise count of records received for processing, broken down by record type i.e. INSERT, MODIFY & REMOVE.
-	BadRecords               map[string]map[string]int64 // Tablewise count of records not converted successfully, broken down by record type.
-	DroppedRecords           map[string]map[string]int64 // Tablewise count of records successfully converted but failed to written on Spanner, broken down by record type.
-	SampleBadRecords         []string                    // Records that generated errors during conversion.
-	SampleBadWrites          []string                    // Records that faced errors while writing to Cloud Spanner.
-	DatastreamCfg            DatastreamCfg
-	DataflowCfg              DataflowCfg
-	PubsubCfg                PubsubCfg
-	ShardToDataStreamInfoMap map[string]DatastreamCfg
-	ShardToDataflowInfoMap   map[string]DataflowCfg
-	ShardToPubsubIdMap       map[string]PubsubCfg
+	Streaming                     bool                        // Flag for confirmation of streaming migration.
+	TotalRecords                  map[string]map[string]int64 // Tablewise count of records received for processing, broken down by record type i.e. INSERT, MODIFY & REMOVE.
+	BadRecords                    map[string]map[string]int64 // Tablewise count of records not converted successfully, broken down by record type.
+	DroppedRecords                map[string]map[string]int64 // Tablewise count of records successfully converted but failed to written on Spanner, broken down by record type.
+	SampleBadRecords              []string                    // Records that generated errors during conversion.
+	SampleBadWrites               []string                    // Records that faced errors while writing to Cloud Spanner.
+	DatastreamResources           DatastreamResources
+	DataflowResources             DataflowResources
+	PubsubResources               PubsubResources
+	ShardToDataStreamResourcesMap map[string]DatastreamResources
+	ShardToDataflowResourcesMap   map[string]DataflowResources
+	ShardToPubsubResourcesMap     map[string]PubsubResources
 }
 
 type GeneratedResources struct {
@@ -222,14 +232,6 @@ type GeneratedResources struct {
 	PubsubResources     string
 	SpannerDatabaseName string
 	CreateTimestamp     time.Time
-}
-
-type PubsubCfg struct {
-	TopicId        string
-	SubscriptionId string
-	NotificationId string
-	BucketName     string
-	Region         string
 }
 
 type DataflowOutput struct {

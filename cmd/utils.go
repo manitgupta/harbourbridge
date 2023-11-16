@@ -172,7 +172,7 @@ func StoreGeneratedResources(ctx context.Context, targetProfile profiles.TargetP
 
 // Stores generated resources for a non-sharded migration, returns an err if unsuccessful
 func storeGeneratedResourcesForSingleShard(ctx context.Context, conv *internal.Conv, migrationJobId string, dbName string, client *sp.Client) error {
-	err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, "smt-default", conv.Audit.StreamingStats.DataflowCfg, conv.Audit.StreamingStats.DatastreamCfg, conv.Audit.StreamingStats.PubsubCfg, dbName, time.Now(), client)
+	err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, "smt-default", conv.Audit.StreamingStats.DataflowResources, conv.Audit.StreamingStats.DatastreamResources, conv.Audit.StreamingStats.PubsubResources, dbName, time.Now(), client)
 	if err != nil {
 		fmt.Printf("can't store generated resources: %v\n", err)
 		return err
@@ -183,12 +183,12 @@ func storeGeneratedResourcesForSingleShard(ctx context.Context, conv *internal.C
 // Stores generated resources for all the shards, returns a list of failed shards
 func storeGeneratedResourcesForShards(ctx context.Context, conv *internal.Conv, migrationJobId string, dbName string, client *sp.Client) ([]string, error) {
 	var dataShardIds []string
-	for dataShardId := range conv.Audit.StreamingStats.ShardToDataStreamInfoMap {
+	for dataShardId := range conv.Audit.StreamingStats.ShardToDataStreamResourcesMap {
 		dataShardIds = append(dataShardIds, dataShardId)
 	}
 	var errShards []string
 	for _, dataShardId := range dataShardIds {
-		err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, dataShardId, conv.Audit.StreamingStats.ShardToDataflowInfoMap[dataShardId], conv.Audit.StreamingStats.ShardToDataStreamInfoMap[dataShardId], conv.Audit.StreamingStats.ShardToPubsubIdMap[dataShardId], dbName, time.Now(), client)
+		err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, dataShardId, conv.Audit.StreamingStats.ShardToDataflowResourcesMap[dataShardId], conv.Audit.StreamingStats.ShardToDataStreamResourcesMap[dataShardId], conv.Audit.StreamingStats.ShardToPubsubResourcesMap[dataShardId], dbName, time.Now(), client)
 		if err != nil {
 			fmt.Printf("can't store generated resources for data shard %s: %v\n", dataShardId, err)
 			errShards = append(errShards, dataShardId)
@@ -197,7 +197,7 @@ func storeGeneratedResourcesForShards(ctx context.Context, conv *internal.Conv, 
 	return errShards, nil
 }
 
-func writeGeneratedResourcesToMetadata(ctx context.Context, migrationJobId string, dataShardId string, dataflowResources internal.DataflowCfg, datastreamResources internal.DatastreamCfg, pubsubResources internal.PubsubCfg, spannerDatabaseName string, createTimestamp time.Time, client *sp.Client) error {
+func writeGeneratedResourcesToMetadata(ctx context.Context, migrationJobId string, dataShardId string, dataflowResources internal.DataflowResources, datastreamResources internal.DatastreamResources, pubsubResources internal.PubsubResources, spannerDatabaseName string, createTimestamp time.Time, client *sp.Client) error {
 	pubsubResourcesBytes, err := json.Marshal(pubsubResources)
 	if err != nil {
 		fmt.Printf("can't marshal pubsub resources for data shard %s: %v\n", dataShardId, err)

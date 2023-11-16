@@ -83,11 +83,11 @@ type DataflowCfg struct {
 }
 
 type StreamingCfg struct {
-	DatastreamCfg DatastreamCfg      `json:"datastreamCfg"`
-	DataflowCfg   DataflowCfg        `json:"dataflowCfg"`
-	TmpDir        string             `json:"tmpDir"`
-	PubsubCfg     internal.PubsubCfg `json:"pubsubCfg"`
-	DataShardId   string             `json:"dataShardId"`
+	DatastreamCfg DatastreamCfg            `json:"datastreamCfg"`
+	DataflowCfg   DataflowCfg              `json:"dataflowCfg"`
+	TmpDir        string                   `json:"tmpDir"`
+	PubsubCfg     internal.PubsubResources `json:"pubsubCfg"`
+	DataShardId   string                   `json:"dataShardId"`
 }
 
 // VerifyAndUpdateCfg checks the fields and errors out if certain fields are empty.
@@ -277,7 +277,7 @@ func getSourceStreamConfig(srcCfg *datastreampb.SourceConfig, sourceProfile prof
 	}
 }
 
-func CreatePubsubResources(ctx context.Context, projectID string, datastreamDestinationConnCfg DstConnCfg, dbName string) (*internal.PubsubCfg, error) {
+func CreatePubsubResources(ctx context.Context, projectID string, datastreamDestinationConnCfg DstConnCfg, dbName string) (*internal.PubsubResources, error) {
 	pubsubClient, err := pubsub.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("pubsub client can not be created: %v", err)
@@ -323,8 +323,8 @@ func CreatePubsubResources(ctx context.Context, projectID string, datastreamDest
 	return &pubsubCfg, nil
 }
 
-func createPubsubTopicAndSubscription(ctx context.Context, pubsubClient *pubsub.Client, dbName string) (internal.PubsubCfg, error) {
-	pubsubCfg := internal.PubsubCfg{}
+func createPubsubTopicAndSubscription(ctx context.Context, pubsubClient *pubsub.Client, dbName string) (internal.PubsubResources, error) {
+	pubsubCfg := internal.PubsubResources{}
 	// Generate ID
 	subscriptionId, err := utils.GenerateName("smt-sub-" + dbName)
 	if err != nil {
@@ -512,37 +512,37 @@ func CleanUpStreamingJobs(ctx context.Context, conv *internal.Conv, projectID, r
 	defer storageClient.Close()
 
 	//clean up for single instance migrations
-	if conv.Audit.StreamingStats.DataflowCfg.JobId != "" {
-		CleanupDataflowJob(ctx, c, conv.Audit.StreamingStats.DataflowCfg.JobId, projectID, region)
+	if conv.Audit.StreamingStats.DataflowResources.JobId != "" {
+		CleanupDataflowJob(ctx, c, conv.Audit.StreamingStats.DataflowResources.JobId, projectID, region)
 	}
-	if conv.Audit.StreamingStats.DatastreamCfg.DatastreamName != "" {
-		CleanupDatastream(ctx, dsClient, conv.Audit.StreamingStats.DatastreamCfg.DatastreamName, projectID, conv.Audit.StreamingStats.DatastreamCfg.Region)
+	if conv.Audit.StreamingStats.DatastreamResources.DatastreamName != "" {
+		CleanupDatastream(ctx, dsClient, conv.Audit.StreamingStats.DatastreamResources.DatastreamName, projectID, conv.Audit.StreamingStats.DatastreamResources.Region)
 	}
-	if conv.Audit.StreamingStats.PubsubCfg.TopicId != "" && !conv.IsSharded {
-		CleanupPubsubResources(ctx, pubsubClient, storageClient, conv.Audit.StreamingStats.PubsubCfg, projectID)
+	if conv.Audit.StreamingStats.PubsubResources.TopicId != "" && !conv.IsSharded {
+		CleanupPubsubResources(ctx, pubsubClient, storageClient, conv.Audit.StreamingStats.PubsubResources, projectID)
 	}
 	// clean up jobs for sharded migrations (with error handling)
-	for _, resourceDetails := range conv.Audit.StreamingStats.ShardToDataflowInfoMap {
+	for _, resourceDetails := range conv.Audit.StreamingStats.ShardToDataflowResourcesMap {
 		dfId := resourceDetails.JobId
 		err := CleanupDataflowJob(ctx, c, dfId, projectID, region)
 		if err != nil {
 			fmt.Printf("Cleanup of the dataflow job: %s was unsuccessful, please clean up the job manually", dfId)
 		}
 	}
-	for _, dsCfg := range conv.Audit.StreamingStats.ShardToDataStreamInfoMap {
+	for _, dsCfg := range conv.Audit.StreamingStats.ShardToDataStreamResourcesMap {
 		err := CleanupDatastream(ctx, dsClient, dsCfg.DatastreamName, projectID, dsCfg.Region)
 		if err != nil {
 			fmt.Printf("Cleanup of the datastream: %s was unsuccessful, please clean up the stream manually", dsCfg)
 		}
 	}
-	for _, pubsubCfg := range conv.Audit.StreamingStats.ShardToPubsubIdMap {
+	for _, pubsubCfg := range conv.Audit.StreamingStats.ShardToPubsubResourcesMap {
 		CleanupPubsubResources(ctx, pubsubClient, storageClient, pubsubCfg, projectID)
 	}
 	fmt.Println("Clean up complete")
 	return nil
 }
 
-func CleanupPubsubResources(ctx context.Context, pubsubClient *pubsub.Client, storageClient *storage.Client, pubsubCfg internal.PubsubCfg, projectID string) {
+func CleanupPubsubResources(ctx context.Context, pubsubClient *pubsub.Client, storageClient *storage.Client, pubsubCfg internal.PubsubResources, projectID string) {
 	subscription := pubsubClient.Subscription(pubsubCfg.SubscriptionId)
 
 	err := subscription.Delete(ctx)
@@ -720,15 +720,15 @@ func LaunchDataflowJob(ctx context.Context, targetProfile profiles.TargetProfile
 func StoreGeneratedResources(conv *internal.Conv, streamingCfg StreamingCfg, dfJobId, gcloudDataflowCmd, project, dataShardId string) {
 	datastreamCfg := streamingCfg.DatastreamCfg
 	dataflowCfg := streamingCfg.DataflowCfg
-	conv.Audit.StreamingStats.DatastreamCfg = internal.DatastreamCfg{DatastreamName: datastreamCfg.StreamId, Region: datastreamCfg.StreamLocation}
-	conv.Audit.StreamingStats.DataflowCfg = internal.DataflowCfg{JobId: dfJobId, GcloudCmd: gcloudDataflowCmd, Region: dataflowCfg.Location}
-	conv.Audit.StreamingStats.PubsubCfg = streamingCfg.PubsubCfg
+	conv.Audit.StreamingStats.DatastreamResources = internal.DatastreamResources{DatastreamName: datastreamCfg.StreamId, Region: datastreamCfg.StreamLocation}
+	conv.Audit.StreamingStats.DataflowResources = internal.DataflowResources{JobId: dfJobId, GcloudCmd: gcloudDataflowCmd, Region: dataflowCfg.Location}
+	conv.Audit.StreamingStats.PubsubResources = streamingCfg.PubsubCfg
 	if dataShardId != "" {
 		var resourceMutex sync.Mutex
 		resourceMutex.Lock()
-		conv.Audit.StreamingStats.ShardToDataStreamInfoMap[dataShardId] = internal.DatastreamCfg{DatastreamName: datastreamCfg.StreamId, Region: datastreamCfg.StreamLocation}
-		conv.Audit.StreamingStats.ShardToDataflowInfoMap[dataShardId] = internal.DataflowCfg{JobId: dfJobId, GcloudCmd: gcloudDataflowCmd, Region: dataflowCfg.Location}
-		conv.Audit.StreamingStats.ShardToPubsubIdMap[dataShardId] = streamingCfg.PubsubCfg
+		conv.Audit.StreamingStats.ShardToDataStreamResourcesMap[dataShardId] = internal.DatastreamResources{DatastreamName: datastreamCfg.StreamId, Region: datastreamCfg.StreamLocation}
+		conv.Audit.StreamingStats.ShardToDataflowResourcesMap[dataShardId] = internal.DataflowResources{JobId: dfJobId, GcloudCmd: gcloudDataflowCmd, Region: dataflowCfg.Location}
+		conv.Audit.StreamingStats.ShardToPubsubResourcesMap[dataShardId] = streamingCfg.PubsubCfg
 		resourceMutex.Unlock()
 	}
 	fullStreamName := fmt.Sprintf("projects/%s/locations/%s/streams/%s", project, datastreamCfg.StreamLocation, datastreamCfg.StreamId)
