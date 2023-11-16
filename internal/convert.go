@@ -187,9 +187,15 @@ type Audit struct {
 }
 
 // Stores information related to resources.
-type ShardedDataflowJobResources struct {
+type DataflowCfg struct {
 	JobId     string `json:"JobId"`
 	GcloudCmd string `json:"GcloudCmd"`
+	Region    string `json:"Region"`
+}
+
+type DatastreamCfg struct {
+	DatastreamName string `json:"DatastreamName"`
+	Region         string `json:"Region"`
 }
 
 // Stores information related to the streaming migration process.
@@ -200,23 +206,22 @@ type streamingStats struct {
 	DroppedRecords           map[string]map[string]int64 // Tablewise count of records successfully converted but failed to written on Spanner, broken down by record type.
 	SampleBadRecords         []string                    // Records that generated errors during conversion.
 	SampleBadWrites          []string                    // Records that faced errors while writing to Cloud Spanner.
-	DataStreamName           string
-	DataflowJobId            string
-	DataflowGcloudCmd        string
-	ShardToDataStreamNameMap map[string]string
-	ShardToDataflowInfoMap   map[string]ShardedDataflowJobResources
+	DatastreamCfg            DatastreamCfg
+	DataflowCfg              DataflowCfg
 	PubsubCfg                PubsubCfg
+	ShardToDataStreamInfoMap map[string]DatastreamCfg
+	ShardToDataflowInfoMap   map[string]DataflowCfg
 	ShardToPubsubIdMap       map[string]PubsubCfg
 }
 
 type GeneratedResources struct {
-	MigrationJobId string
-	DataShardId string
-	DataflowResources string
+	MigrationJobId      string
+	DataShardId         string
+	DataflowResources   string
 	DatastreamResources string
-	PubsubResources string
+	PubsubResources     string
 	SpannerDatabaseName string
-	CreateTimestamp        time.Time
+	CreateTimestamp     time.Time
 }
 
 type PubsubCfg struct {
@@ -224,6 +229,7 @@ type PubsubCfg struct {
 	SubscriptionId string
 	NotificationId string
 	BucketName     string
+	Region         string
 }
 
 type DataflowOutput struct {

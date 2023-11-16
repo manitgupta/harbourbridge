@@ -72,28 +72,33 @@ func (cmd *CleanupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 	}
 	targetProfile, err := profiles.NewTargetProfile(cmd.targetProfile)
 	if err != nil {
-		fmt.Printf("Target profile is not properly configured, this is needed for SMT to lookup job details in the metadata database: %v", err)
+		logger.Log.Debug(fmt.Sprintf("Target profile is not properly configured, this is needed for SMT to lookup job details in the metadata database: %v\n", err))
 		return subcommands.ExitFailure
 	}
 	project, instance, err := getInstanceDetails(ctx, targetProfile)
 	if err != nil {
-		fmt.Printf("can't get resource ids: %v\n", err)
+		logger.Log.Debug(fmt.Sprintf("can't get resource ids: %v\n", err))
 		return subcommands.ExitFailure
 	}
 	dataShardIds, err := profiles.ParseList(cmd.dataShardIds)
 	if err != nil {
-		fmt.Printf("Could not parse datashardIds: %v", err)
+		logger.Log.Debug(fmt.Sprintf("Could not parse datashardIds: %v\n", err))
 		return subcommands.ExitFailure
+	}
+	// all input parameters have been validated
+	if cmd.validate {
+		return subcommands.ExitSuccess
 	}
 	generatedResourcesList, err := getJobDetails(ctx, cmd.jobId, dataShardIds, targetProfile, project, instance)
 	if err != nil {
-		fmt.Printf("Unable to fetch job details from the internal metadata database: %v!", err)
+		logger.Log.Debug(fmt.Sprintf("Unable to fetch job details from the internal metadata database: %v\n", err))
 		return subcommands.ExitFailure
 	}
 	for _, generatedResources := range generatedResourcesList {
 		err = initiateCleanup(ctx, cmd, generatedResources, project, "asia-east2")
 		if err != nil {
-			fmt.Printf("Unable to cleanup resources")
+			logger.Log.Debug(fmt.Sprintf("Unable to cleanup resources: %v\n", err))
+			return subcommands.ExitFailure
 		}
 	}
 	return subcommands.ExitSuccess
@@ -101,41 +106,49 @@ func (cmd *CleanupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 
 func initiateCleanup(ctx context.Context, cmd *CleanupCmd, generatedResources internal.GeneratedResources, project string, region string) error {
 	if cmd.dataflow {
-		fmt.Printf("Attempting to delete dataflow job...\n")
+		logger.Log.Debug(fmt.Sprintf("Attempting to delete dataflow job: %s\n", generatedResources.MigrationJobId))
 		c, err := dataflow.NewJobsV1Beta3Client(ctx)
 		if err != nil {
 			return fmt.Errorf("could not create job client: %v", err)
 		}
 		defer c.Close()
-		fmt.Println("Created dataflow job client...")
-		var dataflowResources internal.ShardedDataflowJobResources
+		logger.Log.Debug("Created dataflow job client...")
+		var dataflowResources internal.DataflowCfg
 		err = json.Unmarshal([]byte(generatedResources.DataflowResources), &dataflowResources)
 		if err != nil {
-			fmt.Printf("Unable to read Dataflow metadata for deletion\n")
+			logger.Log.Debug("Unable to read Dataflow metadata for deletion\n")
 			return err
 		}
 		err = streaming.CleanupDataflowJob(ctx, c, dataflowResources.JobId, project, region)
 		if err != nil {
-			fmt.Printf("Cleanup of the dataflow job: %s was unsuccessful, please clean up the job manually\n", dataflowResources.JobId)
+			logger.Log.Debug(fmt.Sprintf("Cleanup of the dataflow job: %s was unsuccessful, please clean up the job manually. err = %v\n", dataflowResources.JobId, err))
 		} else {
-			fmt.Printf("Dataflow job cleaned up successfully.\n")
+			logger.Log.Info("Dataflow job cleaned up successfully.\n")
 		}
 	}
 	if cmd.datastream {
-		fmt.Printf("Attempting to delete datastream streams...\n")
+		logger.Log.Debug("Attempting to delete datastream streams...\n")
 		dsClient, err := datastream.NewClient(ctx)
-		fmt.Println("Created datastream client...")
+		logger.Log.Debug("Created datastream client...")
 		if err != nil {
 			return fmt.Errorf("datastream client can not be created: %v", err)
 		}
 		defer dsClient.Close()
-		err = streaming.CleanupDatastream(ctx, dsClient, generatedResources.DatastreamResources, project, region)
+		var datastreamResources internal.DatastreamCfg
+		err = json.Unmarshal([]byte(generatedResources.DatastreamResources), &datastreamResources)
 		if err != nil {
-			fmt.Printf("Cleanup of the datastream: %s was unsuccessful, please clean up the stream manually\n", generatedResources.DatastreamResources)
+			logger.Log.Debug("Unable to read Datastream metadata for deletion\n")
+			return err
+		}
+		err = streaming.CleanupDatastream(ctx, dsClient, datastreamResources.DatastreamName, project, datastreamResources.Region)
+		if err != nil {
+			fmt.Printf("Cleanup of the datastream: %s was unsuccessful, please clean up the stream manually. err = %v\n", generatedResources.DatastreamResources, err)
+		} else {
+			logger.Log.Info("Datastream streams cleaned up successfully.\n")
 		}
 	}
 	if cmd.pubsub {
-		fmt.Printf("Attempting to delete pubsub topic and subscription...\n")
+		logger.Log.Debug("Attempting to delete pubsub topic and subscription...\n")
 		pubsubClient, err := pubsub.NewClient(ctx, project)
 		if err != nil {
 			return fmt.Errorf("pubsub client cannot be created: %v", err)
@@ -174,7 +187,7 @@ func getJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 								MigrationJobId,
 								DataShardId,
 								TO_JSON_STRING(DataflowResources) AS DataflowResources,
-								DatastreamResources,
+								TO_JSON_STRING(DatastreamResources) AS DatastreamResources,
 								TO_JSON_STRING(PubsubResources) AS PubsubResources,
 								SpannerDatabaseName,
 								CreateTimestamp

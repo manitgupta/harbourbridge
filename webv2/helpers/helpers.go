@@ -83,7 +83,7 @@ func createDatabase(ctx context.Context, uri string) error {
 				MigrationJobId STRING(36) NOT NULL,
 				DataShardId STRING(36) NOT NULL,
 				DataflowResources JSON NOT NULL,
-				DatastreamResources STRING(36) NOT NULL,
+				DatastreamResources JSON NOT NULL,
 				PubsubResources JSON NOT NULL,
 				SpannerDatabaseName STRING(36) NOT NULL,
 				CreateTimestamp TIMESTAMP NOT NULL,

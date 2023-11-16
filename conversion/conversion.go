@@ -324,9 +324,9 @@ func dataFromDatabaseForDMSMigration() (*writer.BatchWriter, error) {
 // 5. Perform streaming migration via dataflow
 func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, ctx context.Context, sourceProfile profiles.SourceProfile, conv *internal.Conv) (*writer.BatchWriter, error) {
 	updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
-	conv.Audit.StreamingStats.ShardToDataStreamNameMap = make(map[string]string)
+	conv.Audit.StreamingStats.ShardToDataStreamInfoMap = make(map[string]internal.DatastreamCfg)
 	conv.Audit.StreamingStats.ShardToPubsubIdMap = make(map[string]internal.PubsubCfg)
-	conv.Audit.StreamingStats.ShardToDataflowInfoMap = make(map[string]internal.ShardedDataflowJobResources)
+	conv.Audit.StreamingStats.ShardToDataflowInfoMap = make(map[string]internal.DataflowCfg)
 	tableList, err := common.GetIncludedSrcTablesFromConv(conv)
 	if err != nil {
 		fmt.Printf("unable to determine tableList from schema, falling back to full database")

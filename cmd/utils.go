@@ -172,8 +172,7 @@ func StoreGeneratedResources(ctx context.Context, targetProfile profiles.TargetP
 
 // Stores generated resources for a non-sharded migration, returns an err if unsuccessful
 func storeGeneratedResourcesForSingleShard(ctx context.Context, conv *internal.Conv, migrationJobId string, dbName string, client *sp.Client) error {
-	dataflowResources := internal.ShardedDataflowJobResources{JobId: conv.Audit.StreamingStats.DataflowJobId, GcloudCmd: conv.Audit.StreamingStats.DataflowGcloudCmd}
-	err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, "smt-default", dataflowResources, conv.Audit.StreamingStats.DataStreamName, conv.Audit.StreamingStats.PubsubCfg, dbName, time.Now(), client)
+	err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, "smt-default", conv.Audit.StreamingStats.DataflowCfg, conv.Audit.StreamingStats.DatastreamCfg, conv.Audit.StreamingStats.PubsubCfg, dbName, time.Now(), client)
 	if err != nil {
 		fmt.Printf("can't store generated resources: %v\n", err)
 		return err
@@ -184,12 +183,12 @@ func storeGeneratedResourcesForSingleShard(ctx context.Context, conv *internal.C
 // Stores generated resources for all the shards, returns a list of failed shards
 func storeGeneratedResourcesForShards(ctx context.Context, conv *internal.Conv, migrationJobId string, dbName string, client *sp.Client) ([]string, error) {
 	var dataShardIds []string
-	for dataShardId := range conv.Audit.StreamingStats.ShardToDataStreamNameMap {
+	for dataShardId := range conv.Audit.StreamingStats.ShardToDataStreamInfoMap {
 		dataShardIds = append(dataShardIds, dataShardId)
 	}
 	var errShards []string
 	for _, dataShardId := range dataShardIds {
-		err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, dataShardId, conv.Audit.StreamingStats.ShardToDataflowInfoMap[dataShardId], conv.Audit.StreamingStats.ShardToDataStreamNameMap[dataShardId], conv.Audit.StreamingStats.ShardToPubsubIdMap[dataShardId], dbName, time.Now(), client)
+		err := writeGeneratedResourcesToMetadata(ctx, migrationJobId, dataShardId, conv.Audit.StreamingStats.ShardToDataflowInfoMap[dataShardId], conv.Audit.StreamingStats.ShardToDataStreamInfoMap[dataShardId], conv.Audit.StreamingStats.ShardToPubsubIdMap[dataShardId], dbName, time.Now(), client)
 		if err != nil {
 			fmt.Printf("can't store generated resources for data shard %s: %v\n", dataShardId, err)
 			errShards = append(errShards, dataShardId)
@@ -198,7 +197,7 @@ func storeGeneratedResourcesForShards(ctx context.Context, conv *internal.Conv, 
 	return errShards, nil
 }
 
-func writeGeneratedResourcesToMetadata(ctx context.Context, migrationJobId string, dataShardId string, dataflowResources internal.ShardedDataflowJobResources, datastreamResources string, pubsubResources internal.PubsubCfg, spannerDatabaseName string, createTimestamp time.Time, client *sp.Client) error {
+func writeGeneratedResourcesToMetadata(ctx context.Context, migrationJobId string, dataShardId string, dataflowResources internal.DataflowCfg, datastreamResources internal.DatastreamCfg, pubsubResources internal.PubsubCfg, spannerDatabaseName string, createTimestamp time.Time, client *sp.Client) error {
 	pubsubResourcesBytes, err := json.Marshal(pubsubResources)
 	if err != nil {
 		fmt.Printf("can't marshal pubsub resources for data shard %s: %v\n", dataShardId, err)
@@ -209,11 +208,16 @@ func writeGeneratedResourcesToMetadata(ctx context.Context, migrationJobId strin
 		fmt.Printf("can't marshal dataflow resources for data shard %s: %v\n", dataShardId, err)
 		return err
 	}
+	datastreamResourcesBytes, err := json.Marshal(datastreamResources)
+	if err != nil {
+		fmt.Printf("can't marshal datastream resources for data shard %s: %v\n", dataShardId, err)
+		return err
+	}
 	fmt.Printf("Storing generated resources for data shard %s...\n", dataShardId)
 	generatedResources := internal.GeneratedResources{
 		MigrationJobId:      migrationJobId,
 		DataShardId:         dataShardId,
-		DatastreamResources: datastreamResources,
+		DatastreamResources: string(datastreamResourcesBytes),
 		DataflowResources:   string(dataflowResourcesBytes),
 		PubsubResources:     string(pubsubResourcesBytes),
 		SpannerDatabaseName: spannerDatabaseName,
