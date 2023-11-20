@@ -316,7 +316,7 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			// store the generated resources locally in conv, this is used as source of truth for persistence and the UI (should change to persisted values)
 			streaming.StoreGeneratedResources(conv, streamingCfg, dfJobId, gcloudCmd, targetProfile.Conn.Sp.Project, "")
 			//persist the generated resources in a metadata db
-			err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
+			err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId, "smt-default")
 			if err != nil {
 				fmt.Println("Error storing generated resources in SMT metadata store...the migration job will still continue as intended.", err)
 			}
@@ -392,7 +392,7 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		// store the generated resources locally in conv, this is used as source of truth for persistence and the UI (should change to persisted values)
 		streaming.StoreGeneratedResources(conv, streamingCfg, dfOutput.JobID, dfOutput.GCloudCmd, targetProfile.Conn.Sp.Project, p.DataShardId)
 		//persist the generated resources in a metadata db
-		err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
+		err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId, p.DataShardId)
 		if err != nil {
 			fmt.Printf("Error storing generated resources in SMT metadata store for dataShardId: %s...the migration job will still continue as intended, error: %v\n", p.DataShardId, err)
 		}
