@@ -289,7 +289,15 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			return nil, err
 		}
 		var streamInfo map[string]interface{}
+		// minimal downtime migration for a single shard
 		if sourceProfile.Conn.Streaming {
+			//Generate a job Id
+			migrationJobId, err := utils.GenerateName("smt-job")
+			if err != nil {
+				err = fmt.Errorf("error while generating job id: %v", err)
+				return nil, err
+			}
+			fmt.Printf("Creating a migration job with id: %v. This jobId can be used in future commmands (such as cleanup) to refer to this job.\n", migrationJobId)
 			streamInfo, err = infoSchema.StartChangeDataCapture(ctx, conv)
 			if err != nil {
 				return nil, err
@@ -305,9 +313,16 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			dfJobId := dfOutput.JobID
 			gcloudCmd := dfOutput.GCloudCmd
 			streamingCfg, _ := streamInfo["streamingCfg"].(streaming.StreamingCfg)
+			// store the generated resources locally in conv, this is used as source of truth for persistence and the UI (should change to persisted values)
 			streaming.StoreGeneratedResources(conv, streamingCfg, dfJobId, gcloudCmd, targetProfile.Conn.Sp.Project, "")
+			//persist the generated resources in a metadata db
+			err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
+			if err != nil {
+				fmt.Println("Error storing generated resources in SMT metadata store...the migration job will still continue as intended.", err)
+			}
 			return bw, nil
 		}
+		//bulk migration for a single shard
 		return performSnapshotMigration(config, conv, client, infoSchema, internal.AdditionalDataAttributes{ShardId: ""}), nil
 	}
 }
@@ -324,6 +339,13 @@ func dataFromDatabaseForDMSMigration() (*writer.BatchWriter, error) {
 // 5. Perform streaming migration via dataflow
 func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, ctx context.Context, sourceProfile profiles.SourceProfile, conv *internal.Conv) (*writer.BatchWriter, error) {
 	updateShardsWithDataflowConfig(sourceProfile.Config.ShardConfigurationDataflow)
+	//Generate a job Id
+	migrationJobId, err := utils.GenerateName("smt-job")
+	if err != nil {
+		err = fmt.Errorf("error while generating job id: %v", err)
+		return nil, err
+	}
+	fmt.Printf("Creating a migration job with id: %v. This jobId can be used in future commmands (such as cleanup) to refer to this job.\n", migrationJobId)
 	conv.Audit.StreamingStats.ShardToDataStreamResourcesMap = make(map[string]internal.DatastreamResources)
 	conv.Audit.StreamingStats.ShardToPubsubResourcesMap = make(map[string]internal.PubsubResources)
 	conv.Audit.StreamingStats.ShardToDataflowResourcesMap = make(map[string]internal.DataflowResources)
@@ -367,7 +389,13 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		if err != nil {
 			return common.TaskResult[*profiles.DataShard]{Result: p, Err: err}
 		}
+		// store the generated resources locally in conv, this is used as source of truth for persistence and the UI (should change to persisted values)
 		streaming.StoreGeneratedResources(conv, streamingCfg, dfOutput.JobID, dfOutput.GCloudCmd, targetProfile.Conn.Sp.Project, p.DataShardId)
+		//persist the generated resources in a metadata db
+		err = streaming.PersistGeneratedResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
+		if err != nil {
+			fmt.Printf("Error storing generated resources in SMT metadata store for dataShardId: %s...the migration job will still continue as intended, error: %v\n", p.DataShardId, err)
+		}
 		return common.TaskResult[*profiles.DataShard]{Result: p, Err: err}
 	}
 	_, err = common.RunParallelTasks(sourceProfile.Config.ShardConfigurationDataflow.DataShards, 20, asyncProcessShards, true)
