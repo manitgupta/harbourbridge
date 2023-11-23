@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/constants"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/utils"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/logger"
@@ -55,7 +56,7 @@ func PersistJobExecutionData(ctx context.Context, targetProfile profiles.TargetP
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
-	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, "spannermigrationtool_metadata")
+	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)
@@ -82,7 +83,7 @@ func UpdateJobExecutionDataWithAggregateMonitoringResources(ctx context.Context,
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
-	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, "spannermigrationtool_metadata")
+	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)
@@ -116,7 +117,7 @@ func PersistShardExecutionData(ctx context.Context, targetProfile profiles.Targe
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
-	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, "spannermigrationtool_metadata")
+	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)

@@ -37,14 +37,8 @@ const (
 	GOOGLE_SQL_DIALECT     = "Google Standard SQL"
 )
 
-const metadataDbName string = "spannermigrationtool_metadata"
-
-func GetMetadataDbName() string {
-	return metadataDbName
-}
-
 func GetSpannerUri(projectId string, instanceId string) string {
-	return fmt.Sprintf("projects/%s/instances/%s/databases/%s", projectId, instanceId, GetMetadataDbName())
+	return fmt.Sprintf("projects/%s/instances/%s/databases/%s", projectId, instanceId, constants.METADATA_DB)
 }
 
 // Creates the schema for the internal metadata database

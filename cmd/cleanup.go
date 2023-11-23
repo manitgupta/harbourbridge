@@ -97,7 +97,7 @@ func (cmd *CleanupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 	}
 	// all input parameters have been validated
 	if cmd.validate {
-		logger.Log.Info("All input parameters are valid.")
+		logger.Log.Info("All required parameters are present, validated that the command is syntactically correct.\n")
 		return subcommands.ExitSuccess
 	}
 	jobExecutionData, shardExecutionDataList, err := streaming.GetJobDetails(ctx, cmd.jobId, dataShardIds, project, instance)

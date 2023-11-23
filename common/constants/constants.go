@@ -81,4 +81,9 @@ const (
 	DMS_MIGRATION = "dms"
 
 	SESSION_FILE = "sessionFile"
+
+	//Default shardId
+	DEFAULT_SHARD_ID string = "smt-default"
+	//Metadata database name
+	METADATA_DB string = "spannermigrationtool_metadata"
 )

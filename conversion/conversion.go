@@ -362,12 +362,12 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			//persist job and shard level data in the metadata db
 			err = streaming.PersistJobExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, false)
 			if err != nil {
-				logger.Log.Info(fmt.Sprintf("Error storing generated resources in SMT metadata store...the migration job will still continue as intended. %v", err))
+				logger.Log.Info(fmt.Sprintf("Error storing job details in SMT metadata store...the migration job will still continue as intended. %v", err))
 			} else {
 				//only attempt persisting shard level data if the job level data is persisted
-				err = streaming.PersistShardExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, "smt-default")
+				err = streaming.PersistShardExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, constants.DEFAULT_SHARD_ID)
 				if err != nil {
-					fmt.Println("Error storing generated resources in SMT metadata store...the migration job will still continue as intended.", err)
+					logger.Log.Info(fmt.Sprintf("Error storing details for migration job: %s, data shard: %s in SMT metadata store...the migration job will still continue as intended. err = %v\n", migrationJobId, constants.DEFAULT_SHARD_ID, err))
 				}
 			}
 			return bw, nil
@@ -403,7 +403,10 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		fmt.Printf("unable to determine tableList from schema, falling back to full database")
 		tableList = []string{}
 	}
-	streaming.PersistJobExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, true)
+	err = streaming.PersistJobExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, true)
+	if err != nil {
+		logger.Log.Info(fmt.Sprintf("Error storing job details in SMT metadata store...the migration job will still continue as intended. %v", err))
+	}
 	asyncProcessShards := func(p *profiles.DataShard, mutex *sync.Mutex) common.TaskResult[*profiles.DataShard] {
 		dbNameToShardIdMap := make(map[string]string)
 		for _, l := range p.LogicalShards {

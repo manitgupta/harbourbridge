@@ -28,6 +28,7 @@ import (
 	"cloud.google.com/go/pubsub"
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/storage"
+	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/constants"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/utils"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/logger"
@@ -75,7 +76,7 @@ func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions
 }
 
 func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []string, project string, instance string) (JobExecutionData, []ShardExecutionData, error) {
-	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, "spannermigrationtool_metadata")
+	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)
