@@ -72,6 +72,7 @@ export class PrepareMigrationComponent implements OnInit {
   sourceDatabaseName: string = ''
   sourceDatabaseType: string = ''
   resourcesGenerated: IGeneratedResources = {
+    MigrationJobId: '',
     DatabaseName: '',
     DatabaseUrl: '',
     BucketName: '',
@@ -891,6 +892,7 @@ export class PrepareMigrationComponent implements OnInit {
     this.foreignKeyUpdateProgress = 100
     this.foreignKeyProgressMessage = 'Foreign key update in progress...'
     this.resourcesGenerated = {
+      MigrationJobId: '',
       DatabaseName: '',
       DatabaseUrl: '',
       BucketName: '',

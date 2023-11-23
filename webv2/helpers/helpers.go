@@ -47,6 +47,9 @@ func GetSpannerUri(projectId string, instanceId string) string {
 	return fmt.Sprintf("projects/%s/instances/%s/databases/%s", projectId, instanceId, GetMetadataDbName())
 }
 
+// Creates the schema for the internal metadata database
+// JobExecutionData contains the execution data associated with a job, such as the Id of the aggregated monitoring dashboard
+// ShardExecutionData contains the execution data associated with a data shard, such as the Id of the dataflow job, datastream stream etc.
 func createDatabase(ctx context.Context, uri string) error {
 
 	// Spanner uri will be in this format 'projects/project-id/instances/spanner-instance-id/databases/db-name'
@@ -79,6 +82,26 @@ func createDatabase(ctx context.Context, uri string) error {
 				SchemaConversionObject JSON NOT NULL,
 				CreateTimestamp TIMESTAMP NOT NULL,
 			  ) PRIMARY KEY(VersionId)`,
+			  `CREATE TABLE JobExecutionData (
+				MigrationJobId STRING(50) NOT NULL,
+				SpannerDatabaseName STRING(50) NOT NULL,
+				AggMonitoringResources JSON,
+				IsShardedMigration BOOL NOT NULL,
+				CreatedAt TIMESTAMP NOT NULL,
+				UpdatedAt TIMESTAMP NOT NULL,
+			  ) PRIMARY KEY(MigrationJobId)`,
+			  `CREATE TABLE ShardExecutionData (
+				MigrationJobId STRING(50) NOT NULL,
+				DataShardId STRING(50) NOT NULL,
+				DataflowResources JSON NOT NULL,
+				DatastreamResources JSON NOT NULL,
+				PubsubResources JSON NOT NULL,
+				MonitoringResources JSON,
+				CreatedAt TIMESTAMP NOT NULL,
+				UpdatedAt TIMESTAMP NOT NULL,
+			  ) PRIMARY KEY(MigrationJobId, DataShardId),
+			  INTERLEAVE IN PARENT JobExecutionData ON DELETE CASCADE`,
+
 		},
 	})
 	if err != nil {

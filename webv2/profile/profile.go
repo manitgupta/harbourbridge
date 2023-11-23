@@ -254,15 +254,24 @@ func setConnectionProfileFromSessionState(isSource bool, sessionState session.Se
 
 }
 
+// Cleanup streaming jobs API assumes defaults while performing cleanup. 
+// The underlying backend library exposes more hooks which can are not yet implemented on the UI, and are only available via the CLI.
 func CleanUpStreamingJobs(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	sessionState := session.GetSessionState()
 	sessionState.Conv.ConvLock.Lock()
 	defer sessionState.Conv.ConvLock.Unlock()
-	err := streaming.CleanUpStreamingJobs(ctx, sessionState.Conv, sessionState.GCPProjectID, sessionState.Region)
+	jobExecutionData, shardExecutionDataList, err := streaming.GetJobDetails(ctx, sessionState.Conv.Audit.MigrationRequestId, nil, sessionState.GCPProjectID, sessionState.SpannerInstanceID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error while cleaning up streaming jobs: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Unable to fetch job details from the internal metadata database: %v\n", err), http.StatusBadRequest)
 	}
+	jobCleanupOptions := streaming.JobCleanupOptions{
+		Datastream: true,
+		Dataflow:   true,
+		Pubsub:     true,
+		Monitoring: true,
+	}
+	streaming.InitiateJobCleanup(ctx, jobCleanupOptions, jobExecutionData, shardExecutionDataList, sessionState.GCPProjectID, sessionState.SpannerInstanceID)
 }
 
 type connectionProfileReq struct {

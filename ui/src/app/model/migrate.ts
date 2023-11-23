@@ -18,6 +18,7 @@ export interface IProgress {
 }
 
 export interface IGeneratedResources {
+    MigrationJobId: string
     DatabaseName: string
     DatabaseUrl: string
     BucketName: string
