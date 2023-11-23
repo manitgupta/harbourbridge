@@ -58,7 +58,6 @@ import (
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/profile"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/table"
 	utilities "github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/utilities"
-	"github.com/google/uuid"
 	"github.com/pkg/browser"
 	instancepb "google.golang.org/genproto/googleapis/spanner/admin/instance/v1"
 
@@ -2399,7 +2398,8 @@ func getSourceAndTargetProfiles(sessionState *session.SessionState, details migr
 		}
 		sourceProfileString = sourceProfileString + fmt.Sprintf(",streamingCfg=%v", fileName)
 	} else {
-		sessionState.Conv.Audit.MigrationRequestId = "SMT-" + uuid.New().String()
+		sessionState.Conv.Audit.MigrationRequestId, _ = utils.GenerateName("smt-job")
+		sessionState.Conv.Audit.MigrationRequestId = strings.Replace(sessionState.Conv.Audit.MigrationRequestId, "_", "-", -1)
 		sessionState.Bucket = strings.ToLower(sessionState.Conv.Audit.MigrationRequestId)
 		sessionState.RootPath = "/"
 	}
@@ -2419,7 +2419,7 @@ func getSourceAndTargetProfiles(sessionState *session.SessionState, details migr
 }
 
 func getSourceProfileStringForShardedMigrations(sessionState *session.SessionState, details migrationDetails) (string, error) {
-	fileName := "SMT-" + uuid.New().String() + "-sharding.cfg"
+	fileName := sessionState.Conv.Audit.MigrationRequestId + "-sharding.cfg"
 	if details.MigrationType != helpers.LOW_DOWNTIME_MIGRATION {
 		err := createConfigFileForShardedBulkMigration(sessionState, details, fileName)
 		if err != nil {

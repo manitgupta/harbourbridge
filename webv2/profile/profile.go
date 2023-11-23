@@ -16,7 +16,6 @@ import (
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/streaming"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/helpers"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/session"
-	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 	datastreampb "google.golang.org/genproto/googleapis/cloud/datastream/v1"
 )
@@ -50,7 +49,8 @@ func ListConnectionProfiles(w http.ResponseWriter, r *http.Request) {
 	defer sessionState.Conv.ConvLock.Unlock()
 	source := r.FormValue("source") == "true"
 	if !source {
-		sessionState.Conv.Audit.MigrationRequestId = "SMT-" + uuid.New().String()
+		sessionState.Conv.Audit.MigrationRequestId, _ = utils.GenerateName("smt-job")
+		sessionState.Conv.Audit.MigrationRequestId = strings.Replace(sessionState.Conv.Audit.MigrationRequestId, "_", "-", -1)
 		sessionState.Bucket = strings.ToLower(sessionState.Conv.Audit.MigrationRequestId) + "/"
 	}
 	databaseType, err := helpers.GetSourceDatabaseFromDriver(sessionState.Driver)
