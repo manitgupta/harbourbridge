@@ -86,4 +86,6 @@ const (
 	DEFAULT_SHARD_ID string = "smt-default"
 	//Metadata database name
 	METADATA_DB string = "spannermigrationtool_metadata"
+	//Migration types
+	MINIMAL_DOWNTIME_MIGRATION = "minimal_downtime"
 )

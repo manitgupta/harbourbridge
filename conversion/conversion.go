@@ -360,12 +360,12 @@ func dataFromDatabase(ctx context.Context, sourceProfile profiles.SourceProfile,
 			// store the generated resources locally in conv, this is used as source of truth for persistence and the UI (should change to persisted values)
 			streaming.StoreGeneratedResources(conv, streamingCfg, dfJobId, gcloudCmd, targetProfile.Conn.Sp.Project, "", internal.GcsResources{BucketName: gcsBucket}, dashboardName)
 			//persist job and shard level data in the metadata db
-			err = streaming.PersistJobExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, false)
+			err = streaming.PersistJobDetails(ctx, targetProfile, sourceProfile, conv, migrationJobId, false)
 			if err != nil {
 				logger.Log.Info(fmt.Sprintf("Error storing job details in SMT metadata store...the migration job will still continue as intended. %v", err))
 			} else {
 				//only attempt persisting shard level data if the job level data is persisted
-				err = streaming.PersistShardExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, constants.DEFAULT_SHARD_ID)
+				err = streaming.PersistResources(ctx, targetProfile, sourceProfile, conv, migrationJobId, constants.DEFAULT_SHARD_ID)
 				if err != nil {
 					logger.Log.Info(fmt.Sprintf("Error storing details for migration job: %s, data shard: %s in SMT metadata store...the migration job will still continue as intended. err = %v\n", migrationJobId, constants.DEFAULT_SHARD_ID, err))
 				}
@@ -403,7 +403,7 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		fmt.Printf("unable to determine tableList from schema, falling back to full database")
 		tableList = []string{}
 	}
-	err = streaming.PersistJobExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, true)
+	err = streaming.PersistJobDetails(ctx, targetProfile, sourceProfile, conv, migrationJobId, true)
 	if err != nil {
 		logger.Log.Info(fmt.Sprintf("Error storing job details in SMT metadata store...the migration job will still continue as intended. %v", err))
 	}
@@ -476,7 +476,7 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		}
 		streaming.StoreGeneratedResources(conv, streamingCfg, dfOutput.JobID, dfOutput.GCloudCmd, targetProfile.Conn.Sp.Project, p.DataShardId, internal.GcsResources{BucketName: gcsBucket}, dashboardName)
 		//persist the generated resources in a metadata db
-		err = streaming.PersistShardExecutionData(ctx, targetProfile, sourceProfile, conv, migrationJobId, p.DataShardId)
+		err = streaming.PersistResources(ctx, targetProfile, sourceProfile, conv, migrationJobId, p.DataShardId)
 		if err != nil {
 			fmt.Printf("Error storing generated resources in SMT metadata store for dataShardId: %s...the migration job will still continue as intended, error: %v\n", p.DataShardId, err)
 		}
@@ -506,7 +506,7 @@ func dataFromDatabaseForDataflowMigration(targetProfile profiles.TargetProfile, 
 		fmt.Printf("Aggregated Monitoring Dashboard: %+v\n", strings.Split(aggRespDash.Name, "/")[3])
 		conv.Audit.StreamingStats.AggMonitoringResources = internal.MonitoringResources{DashboardName: strings.Split(aggRespDash.Name, "/")[3]}
 	}
-	err = streaming.UpdateJobExecutionDataWithAggregateMonitoringResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
+	err = streaming.PersistAggregateMonitoringResources(ctx, targetProfile, sourceProfile, conv, migrationJobId)
 	if err != nil {
 		logger.Log.Info(fmt.Sprintf("Unable to store aggregated monitoring dashboard in metadata database\n error=%v\n", err))
 	} else {

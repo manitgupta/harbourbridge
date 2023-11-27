@@ -50,23 +50,23 @@ type JobCleanupOptions struct {
 	Monitoring bool
 }
 
-func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions, jobExecutionData JobExecutionData, shardExecutionDataList []ShardExecutionData, project string, instance string) {
+func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions, jobDetails JobDetails, shardExecutionDataList []JobResources, project string, instance string) {
 	//initiate shard level cleanup
 	for _, generatedResources := range shardExecutionDataList {
 		// converting to a differnet struct to prevent job level struct leakage into shard level actions
 		shardCleanupOptions := ShardCleanupOptions(jobCleanupOptions)
-		logger.Log.Info(fmt.Sprintf("Initiating cleanup for jobId: %s, dataShardId: %s\n", generatedResources.MigrationJobId, generatedResources.DataShardId))
+		logger.Log.Info(fmt.Sprintf("Initiating cleanup for jobId: %s, dataShardId: %s\n", generatedResources.JobId, generatedResources.DataShardId))
 		err := initiateShardCleanup(ctx, shardCleanupOptions, generatedResources, project, instance)
 		if err != nil {
-			logger.Log.Debug(fmt.Sprintf("Unable to cleanup resources for jobId: %s, dataShardId: %s: %v\n", generatedResources.MigrationJobId, generatedResources.DataShardId, err))
+			logger.Log.Debug(fmt.Sprintf("Unable to cleanup resources for jobId: %s, dataShardId: %s: %v\n", generatedResources.JobId, generatedResources.DataShardId, err))
 		} else {
-			logger.Log.Info(fmt.Sprintf("Successfully cleaned up resources for jobId: %v\n", generatedResources.MigrationJobId))
+			logger.Log.Info(fmt.Sprintf("Successfully cleaned up resources for jobId: %v\n", generatedResources.JobId))
 		}
 	}
 	// initiate job level
 	if jobCleanupOptions.Monitoring {
 		var aggMonitoringResources internal.MonitoringResources
-		err := json.Unmarshal([]byte(jobExecutionData.AggMonitoringResources), &aggMonitoringResources)
+		err := json.Unmarshal([]byte(jobDetails.SpannerDatabaseName), &aggMonitoringResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read aggregate monitoring metadata for deletion\n")
 		} else {
@@ -75,12 +75,12 @@ func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions
 	}
 }
 
-func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []string, project string, instance string) (JobExecutionData, []ShardExecutionData, error) {
+func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []string, project string, instance string) (JobDetails, []JobResources, error) {
 	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)
-		return JobExecutionData{}, nil, err
+		return JobDetails{}, nil, err
 	}
 	defer client.Close()
 	txn := client.ReadOnlyTransaction()
@@ -97,7 +97,7 @@ func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 							WHERE MigrationJobId = '%s'`, migrationJobId),
 	}
 	iter := txn.Query(ctx, jobQuery)
-	var jobExecutionData JobExecutionData
+	var jobExecutionData JobDetails
 	err = iter.Do(func(row *spanner.Row) error {
 		if err := row.ToStruct(&jobExecutionData); err != nil {
 			return err
@@ -106,7 +106,7 @@ func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 	})
 	if err != nil {
 		err = fmt.Errorf("can't fetch job details from db for migration job: %s: %v", migrationJobId, err)
-		return JobExecutionData{}, nil, err
+		return JobDetails{}, nil, err
 	}
 
 	//fetch shard level data
@@ -122,7 +122,7 @@ func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 							WHERE MigrationJobId = '%s'`, migrationJobId),
 	}
 	iter = txn.Query(ctx, shardQuery)
-	shardExecutionDataList := []ShardExecutionData{}
+	shardExecutionDataList := []JobResources{}
 	for {
 		row, e := iter.Next()
 		if e == iterator.Done {
@@ -132,7 +132,7 @@ func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 			err = e
 			break
 		}
-		var shardExecutionData ShardExecutionData
+		var shardExecutionData JobResources
 		row.ToStruct(&shardExecutionData)
 		if filterbyDataShardId(shardExecutionData.DataShardId, dataShardIds) {
 			shardExecutionDataList = append(shardExecutionDataList, shardExecutionData)
@@ -161,10 +161,10 @@ func GetInstanceDetails(ctx context.Context, targetProfile profiles.TargetProfil
 	return project, instance, nil
 }
 
-func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shardExecutionData ShardExecutionData, project string, instance string) error {
+func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shardExecutionData JobResources, project string, instance string) error {
 	if options.Dataflow {
 		var dataflowResources internal.DataflowResources
-		err := json.Unmarshal([]byte(shardExecutionData.DataflowResources), &dataflowResources)
+		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &dataflowResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Dataflow metadata for deletion\n")
 		} else {
@@ -173,7 +173,7 @@ func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shar
 	}
 	if options.Datastream {
 		var datastreamResources internal.DatastreamResources
-		err := json.Unmarshal([]byte(shardExecutionData.DatastreamResources), &datastreamResources)
+		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &datastreamResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Datastream metadata for deletion\n")
 		} else {
@@ -182,7 +182,7 @@ func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shar
 	}
 	if options.Pubsub {
 		var pubsubResources internal.PubsubResources
-		err := json.Unmarshal([]byte(shardExecutionData.PubsubResources), &pubsubResources)
+		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &pubsubResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Pubsub metadata for deletion\n")
 		} else {
@@ -191,7 +191,7 @@ func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shar
 	}
 	if options.Monitoring {
 		var monitoringResources internal.MonitoringResources
-		err := json.Unmarshal([]byte(shardExecutionData.MonitoringResources), &monitoringResources)
+		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &monitoringResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read monitoring metadata for deletion\n")
 		} else {
@@ -219,13 +219,13 @@ func cleanupPubsubResources(ctx context.Context, pubsubResources internal.Pubsub
 	if err != nil {
 		logger.Log.Error(fmt.Sprintf("pubsub client can not be created: %v", err))
 		return
-	} 
+	}
 	defer pubsubClient.Close()
 	storageClient, err := storage.NewClient(ctx)
 	if err != nil {
 		logger.Log.Error(fmt.Sprintf("storage client can not be created: %v", err))
 		return
-	} 
+	}
 	defer storageClient.Close()
 	subscription := pubsubClient.Subscription(pubsubResources.SubscriptionId)
 	err = subscription.Delete(ctx)
@@ -257,7 +257,7 @@ func cleanupMonitoringDashboard(ctx context.Context, monitoringResources interna
 	if err != nil {
 		logger.Log.Error(fmt.Sprintf("Cleanup of the monitoring dashboard: %s Failed, please clean up the dashboard manually\n error=%v\n", monitoringResources.DashboardName, err))
 		return
-	} 
+	}
 	defer client.Close()
 	req := &dashboardpb.DeleteDashboardRequest{
 		Name: fmt.Sprintf("projects/%s/dashboards/%s", projectID, monitoringResources.DashboardName),
@@ -277,7 +277,7 @@ func cleanupDatastream(ctx context.Context, datastreamResources internal.Datastr
 	if err != nil {
 		logger.Log.Error(fmt.Sprintf("datastream client can not be created: %v", err))
 		return
-	} 
+	}
 	defer datastreamClient.Close()
 	req := &datastreampb.DeleteStreamRequest{
 		Name: fmt.Sprintf("projects/%s/locations/%s/streams/%s", project, datastreamResources.Region, datastreamResources.DatastreamName),
@@ -295,8 +295,8 @@ func cleanupDataflowJob(ctx context.Context, dataflowResources internal.Dataflow
 	dataflowClient, err := dataflow.NewJobsV1Beta3Client(ctx)
 	if err != nil {
 		logger.Log.Error(fmt.Sprintf("dataflow client can not be created: %v", err))
-		return 
-	} 
+		return
+	}
 	defer dataflowClient.Close()
 	job := &dataflowpb.Job{
 		Id:             dataflowResources.JobId,

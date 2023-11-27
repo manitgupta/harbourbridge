@@ -42,7 +42,7 @@ func GetSpannerUri(projectId string, instanceId string) string {
 }
 
 // Creates the schema for the internal metadata database
-// JobExecutionData contains the execution data associated with a job, such as the Id of the aggregated monitoring dashboard
+// JobDetails contains the execution data associated with a job, such as the Id of the aggregated monitoring dashboard
 // ShardExecutionData contains the execution data associated with a data shard, such as the Id of the dataflow job, datastream stream etc.
 func createDatabase(ctx context.Context, uri string) error {
 
@@ -76,26 +76,27 @@ func createDatabase(ctx context.Context, uri string) error {
 				SchemaConversionObject JSON NOT NULL,
 				CreateTimestamp TIMESTAMP NOT NULL,
 			  ) PRIMARY KEY(VersionId)`,
-			  `CREATE TABLE JobExecutionData (
-				MigrationJobId STRING(50) NOT NULL,
-				SpannerDatabaseName STRING(50) NOT NULL,
-				AggMonitoringResources JSON,
-				IsShardedMigration BOOL NOT NULL,
+			  `CREATE TABLE JobDetails (
+				JobId STRING(100) NOT NULL,
+				JobName STRING(100) NOT NULL,
+				JobType STRING(100) NOT NULL,
+				JobMetadata JSON,
+				Dialect STRING(50) NOT NULL,
+				Session JSON NOT NULL,
+				SpannerDatabaseName STRING(100) NOT NULL,
 				CreatedAt TIMESTAMP NOT NULL,
 				UpdatedAt TIMESTAMP NOT NULL,
-			  ) PRIMARY KEY(MigrationJobId)`,
-			  `CREATE TABLE ShardExecutionData (
-				MigrationJobId STRING(50) NOT NULL,
-				DataShardId STRING(50) NOT NULL,
-				DataflowResources JSON NOT NULL,
-				DatastreamResources JSON NOT NULL,
-				PubsubResources JSON NOT NULL,
-				MonitoringResources JSON,
+			  ) PRIMARY KEY(JobId)`,
+			  `CREATE TABLE JobResources (
+				ResourceId STRING(100) NOT NULL,
+				JobId STRING(100) NOT NULL,
+				DataShardId STRING(100) NOT NULL,
+				ExternalResourceId STRING(100) NOT NULL,
+				ResourceName STRING(100) NOT NULL,
+				ResourceType STRING(100) NOT NULL,
+				ResourceMetadata JSON,
 				CreatedAt TIMESTAMP NOT NULL,
-				UpdatedAt TIMESTAMP NOT NULL,
-			  ) PRIMARY KEY(MigrationJobId, DataShardId),
-			  INTERLEAVE IN PARENT JobExecutionData ON DELETE CASCADE`,
-
+			  ) PRIMARY KEY(ResourceId)`,
 		},
 	})
 	if err != nil {
