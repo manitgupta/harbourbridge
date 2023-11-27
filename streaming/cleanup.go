@@ -36,12 +36,6 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-type ShardCleanupOptions struct {
-	Dataflow   bool
-	Datastream bool
-	Pubsub     bool
-	Monitoring bool
-}
 
 type JobCleanupOptions struct {
 	Dataflow   bool
@@ -50,79 +44,47 @@ type JobCleanupOptions struct {
 	Monitoring bool
 }
 
-func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions, jobDetails JobDetails, shardExecutionDataList []JobResources, project string, instance string) {
-	//initiate shard level cleanup
-	for _, generatedResources := range shardExecutionDataList {
-		// converting to a differnet struct to prevent job level struct leakage into shard level actions
-		shardCleanupOptions := ShardCleanupOptions(jobCleanupOptions)
-		logger.Log.Info(fmt.Sprintf("Initiating cleanup for jobId: %s, dataShardId: %s\n", generatedResources.JobId, generatedResources.DataShardId))
-		err := initiateShardCleanup(ctx, shardCleanupOptions, generatedResources, project, instance)
-		if err != nil {
-			logger.Log.Debug(fmt.Sprintf("Unable to cleanup resources for jobId: %s, dataShardId: %s: %v\n", generatedResources.JobId, generatedResources.DataShardId, err))
-		} else {
-			logger.Log.Info(fmt.Sprintf("Successfully cleaned up resources for jobId: %v\n", generatedResources.JobId))
-		}
-	}
-	// initiate job level
-	if jobCleanupOptions.Monitoring {
-		var aggMonitoringResources internal.MonitoringResources
-		err := json.Unmarshal([]byte(jobDetails.SpannerDatabaseName), &aggMonitoringResources)
-		if err != nil {
-			logger.Log.Debug("Unable to read aggregate monitoring metadata for deletion\n")
-		} else {
-			cleanupMonitoringDashboard(ctx, aggMonitoringResources, project)
+func InitiateJobCleanup(ctx context.Context, jobCleanupOptions JobCleanupOptions, jobResourcesList []JobResources, project string, instance string) {
+	//initiate resource cleanup
+	for _, resources := range jobResourcesList {
+		if shouldCleanupResource(resources, jobCleanupOptions) {
+			logger.Log.Info(fmt.Sprintf("Initiating cleanup for jobId: %s, dataShardId: %s\n", resources.JobId, resources.DataShardId))
+			err := initiateResourceCleanup(ctx, resources, project, instance)
+			if err != nil {
+				logger.Log.Debug(fmt.Sprintf("Unable to cleanup resources for jobId: %s, dataShardId: %s: %v\n", resources.JobId, resources.DataShardId, err))
+			} else {
+				logger.Log.Info(fmt.Sprintf("Successfully cleaned up resources for jobId: %v\n", resources.JobId))
+			}
 		}
 	}
 }
 
-func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []string, project string, instance string) (JobDetails, []JobResources, error) {
+func FetchResources(ctx context.Context, migrationJobId string, dataShardIds []string, project string, instance string) ([]JobResources, error) {
 	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
 		err = fmt.Errorf("can't create client for db %s: %v", dbURI, err)
-		return JobDetails{}, nil, err
+		return nil, err
 	}
 	defer client.Close()
 	txn := client.ReadOnlyTransaction()
 	defer txn.Close()
 
-	//fetch job level data
-	jobQuery := spanner.Statement{
+	//fetch all resources
+	resourceQuery := spanner.Statement{
 		SQL: fmt.Sprintf(`SELECT 
-								MigrationJobId,
-								SpannerDatabaseName,
-								TO_JSON_STRING(AggMonitoringResources) AS AggMonitoringResources,
-								IsShardedMigration
-							FROM JobExecutionData 
-							WHERE MigrationJobId = '%s'`, migrationJobId),
-	}
-	iter := txn.Query(ctx, jobQuery)
-	var jobExecutionData JobDetails
-	err = iter.Do(func(row *spanner.Row) error {
-		if err := row.ToStruct(&jobExecutionData); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		err = fmt.Errorf("can't fetch job details from db for migration job: %s: %v", migrationJobId, err)
-		return JobDetails{}, nil, err
-	}
-
-	//fetch shard level data
-	shardQuery := spanner.Statement{
-		SQL: fmt.Sprintf(`SELECT 
-								MigrationJobId,
+								ResourceId,
+								JobId,
 								DataShardId,
-								TO_JSON_STRING(DataflowResources) AS DataflowResources,
-								TO_JSON_STRING(DatastreamResources) AS DatastreamResources,
-								TO_JSON_STRING(PubsubResources) AS PubsubResources,
-								TO_JSON_STRING(MonitoringResources) AS MonitoringResources
-							FROM ShardExecutionData 
-							WHERE MigrationJobId = '%s'`, migrationJobId),
+								ExternalResourceId,
+								ResourceName,
+								ResourceType,
+								TO_JSON_STRING(ResourceMetadata) AS ResourceMetadata
+							FROM JobResources 
+							WHERE JobId = '%s'`, migrationJobId),
 	}
-	iter = txn.Query(ctx, shardQuery)
-	shardExecutionDataList := []JobResources{}
+	iter := txn.Query(ctx, resourceQuery)
+	jobResourcesList := []JobResources{}
 	for {
 		row, e := iter.Next()
 		if e == iterator.Done {
@@ -132,13 +94,13 @@ func GetJobDetails(ctx context.Context, migrationJobId string, dataShardIds []st
 			err = e
 			break
 		}
-		var shardExecutionData JobResources
-		row.ToStruct(&shardExecutionData)
-		if filterbyDataShardId(shardExecutionData.DataShardId, dataShardIds) {
-			shardExecutionDataList = append(shardExecutionDataList, shardExecutionData)
+		var jobResource JobResources
+		row.ToStruct(&jobResource)
+		if filterbyDataShardId(jobResource.DataShardId, dataShardIds) {
+			jobResourcesList = append(jobResourcesList, jobResource)
 		}
 	}
-	return jobExecutionData, shardExecutionDataList, err
+	return jobResourcesList, err
 }
 
 func GetInstanceDetails(ctx context.Context, targetProfile profiles.TargetProfile) (string, string, error) {
@@ -161,37 +123,51 @@ func GetInstanceDetails(ctx context.Context, targetProfile profiles.TargetProfil
 	return project, instance, nil
 }
 
-func initiateShardCleanup(ctx context.Context, options ShardCleanupOptions, shardExecutionData JobResources, project string, instance string) error {
-	if options.Dataflow {
+func shouldCleanupResource(jobResources JobResources, jobCleanupOptions JobCleanupOptions) bool {
+	if jobCleanupOptions.Datastream && jobResources.ResourceType == constants.DATASTREAM_RESOURCE {
+		return true
+	} else if jobCleanupOptions.Dataflow && jobResources.ResourceType == constants.DATAFLOW_RESOURCE {
+		return true
+	} else if jobCleanupOptions.Pubsub && jobResources.ResourceType == constants.PUBSUB_RESOURCE {
+		return true
+	} else if jobCleanupOptions.Monitoring && (jobResources.ResourceType == constants.MONITORING_RESOURCE || jobResources.ResourceType == constants.AGG_MONITORING_RESOURCE) {
+		return true
+	}
+	return false
+}
+
+
+func initiateResourceCleanup(ctx context.Context, jobResources JobResources, project string, instance string) error {
+	if jobResources.ResourceType == constants.DATAFLOW_RESOURCE {
 		var dataflowResources internal.DataflowResources
-		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &dataflowResources)
+		err := json.Unmarshal([]byte(jobResources.ResourceMetadata), &dataflowResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Dataflow metadata for deletion\n")
 		} else {
 			cleanupDataflowJob(ctx, dataflowResources, project)
 		}
 	}
-	if options.Datastream {
+	if jobResources.ResourceType == constants.DATASTREAM_RESOURCE {
 		var datastreamResources internal.DatastreamResources
-		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &datastreamResources)
+		err := json.Unmarshal([]byte(jobResources.ResourceMetadata), &datastreamResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Datastream metadata for deletion\n")
 		} else {
 			cleanupDatastream(ctx, datastreamResources, project)
 		}
 	}
-	if options.Pubsub {
+	if jobResources.ResourceType == constants.PUBSUB_RESOURCE {
 		var pubsubResources internal.PubsubResources
-		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &pubsubResources)
+		err := json.Unmarshal([]byte(jobResources.ResourceMetadata), &pubsubResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read Pubsub metadata for deletion\n")
 		} else {
 			cleanupPubsubResources(ctx, pubsubResources, project)
 		}
 	}
-	if options.Monitoring {
+	if jobResources.ResourceType == constants.MONITORING_RESOURCE || jobResources.ResourceType == constants.AGG_MONITORING_RESOURCE {
 		var monitoringResources internal.MonitoringResources
-		err := json.Unmarshal([]byte(shardExecutionData.ResourceMetadata), &monitoringResources)
+		err := json.Unmarshal([]byte(jobResources.ResourceMetadata), &monitoringResources)
 		if err != nil {
 			logger.Log.Debug("Unable to read monitoring metadata for deletion\n")
 		} else {

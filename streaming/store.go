@@ -82,7 +82,7 @@ func PersistAggregateMonitoringResources(ctx context.Context, targetProfile prof
 		return err
 	}
 	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		mutation, err := createResourceMutation(migrationJobId, constants.DEFAULT_SHARD_ID, conv.Audit.StreamingStats.AggMonitoringResources.DashboardName, "aggregated_monitoring", conv.Audit.StreamingStats.AggMonitoringResources.DashboardName, string(aggMonitoringResourcesBytes))
+		mutation, err := createResourceMutation(migrationJobId, constants.DEFAULT_SHARD_ID, conv.Audit.StreamingStats.AggMonitoringResources.DashboardName, constants.AGG_MONITORING_RESOURCE, conv.Audit.StreamingStats.AggMonitoringResources.DashboardName, string(aggMonitoringResourcesBytes))
 		if err != nil {
 			return err
 		}
@@ -194,23 +194,23 @@ func writeJobResources(ctx context.Context, migrationJobId string, dataShardId s
 	}
 	logger.Log.Debug(fmt.Sprintf("Storing generated resources for data shard %s...\n", dataShardId))
 	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		datastreamMutation, err := createResourceMutation(migrationJobId, dataShardId, datastreamResources.DatastreamName, "datastream", datastreamResources.DatastreamName, string(datastreamResourcesBytes))
+		datastreamMutation, err := createResourceMutation(migrationJobId, dataShardId, datastreamResources.DatastreamName, constants.DATASTREAM_RESOURCE, datastreamResources.DatastreamName, string(datastreamResourcesBytes))
 		if err != nil {
 			return err
 		}
-		dataflowMutation, err := createResourceMutation(migrationJobId, dataShardId, dataflowResources.JobId, "dataflow", dataflowResources.JobId, string(dataflowResourcesBytes))
+		dataflowMutation, err := createResourceMutation(migrationJobId, dataShardId, dataflowResources.JobId, constants.DATAFLOW_RESOURCE, dataflowResources.JobId, string(dataflowResourcesBytes))
 		if err != nil {
 			return err
 		}
-		gcsMutation, err := createResourceMutation(migrationJobId, dataShardId, gcsResources.BucketName, "gcs", gcsResources.BucketName, string(gcsResourcesBytes))
+		gcsMutation, err := createResourceMutation(migrationJobId, dataShardId, gcsResources.BucketName, constants.GCS_RESOURCE, gcsResources.BucketName, string(gcsResourcesBytes))
 		if err != nil {
 			return err
 		}
-		pubsubMutation, errr := createResourceMutation(migrationJobId, dataShardId, pubsubResources.TopicId, "pubsub", pubsubResources.TopicId, string(pubsubResourcesBytes))
+		pubsubMutation, errr := createResourceMutation(migrationJobId, dataShardId, pubsubResources.TopicId, constants.PUBSUB_RESOURCE, pubsubResources.TopicId, string(pubsubResourcesBytes))
 		if errr != nil {
 			return errr
 		}
-		monitoringMutation, err := createResourceMutation(migrationJobId, dataShardId, monitoringResources.DashboardName, "monitoring", monitoringResources.DashboardName, string(monitoringResourcesBytes))
+		monitoringMutation, err := createResourceMutation(migrationJobId, dataShardId, monitoringResources.DashboardName, constants.MONITORING_RESOURCE, monitoringResources.DashboardName, string(monitoringResourcesBytes))
 		if err != nil {
 			return err
 		}

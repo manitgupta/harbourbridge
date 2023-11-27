@@ -100,7 +100,7 @@ func (cmd *CleanupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 		logger.Log.Info("All required parameters are present, validated that the command is syntactically correct.\n")
 		return subcommands.ExitSuccess
 	}
-	jobExecutionData, shardExecutionDataList, err := streaming.GetJobDetails(ctx, cmd.jobId, dataShardIds, project, instance)
+	jobResourcesList, err := streaming.FetchResources(ctx, cmd.jobId, dataShardIds, project, instance)
 	if err != nil {
 		logger.Log.Debug(fmt.Sprintf("Unable to fetch job details from the internal metadata database: %v\n", err))
 		return subcommands.ExitFailure
@@ -111,6 +111,6 @@ func (cmd *CleanupCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interf
 		Pubsub:     cmd.pubsub,
 		Monitoring: cmd.monitoring,
 	}
-	streaming.InitiateJobCleanup(ctx, jobCleanupOptions, jobExecutionData, shardExecutionDataList, project, instance)
+	streaming.InitiateJobCleanup(ctx, jobCleanupOptions, jobResourcesList, project, instance)
 	return subcommands.ExitSuccess
 }
