@@ -43,6 +43,7 @@ const (
 type TargetProfileConnectionSpanner struct {
 	Endpoint string // Same as SPANNER_API_ENDPOINT environment variable
 	Project  string // Same as GCLOUD_PROJECT environment variable
+	SpannerProject string
 	Instance string
 	Dbname   string
 	Dialect  string
@@ -134,6 +135,9 @@ func NewTargetProfile(s string) (TargetProfile, error) {
 	}
 	if project, ok := params["project"]; ok {
 		sp.Project = project
+	}
+	if spannerProject, ok := params["spannerProject"]; ok {
+		sp.SpannerProject = spannerProject
 	}
 	if instance, ok := params["instance"]; ok {
 		sp.Instance = instance

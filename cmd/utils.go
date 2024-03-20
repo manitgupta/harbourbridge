@@ -49,6 +49,8 @@ func CreateDatabaseClient(ctx context.Context, targetProfile profiles.TargetProf
 	if err != nil {
 		return nil, nil, "", err
 	}
+	//HACK: TODO: Override project with Spanner project to fix the dbURI
+	project = targetProfile.Conn.Sp.SpannerProject
 	fmt.Println("Using Google Cloud project:", project)
 	fmt.Println("Using Cloud Spanner instance:", instance)
 	utils.PrintPermissionsWarning(driver, ioHelper.Out)

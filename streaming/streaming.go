@@ -695,6 +695,7 @@ func LaunchDataflowJob(ctx context.Context, targetProfile profiles.TargetProfile
 			"deadLetterQueueDirectory":      inputFilePattern + "dlq",
 			"transformationContextFilePath": streamingCfg.TmpDir + "transformationContext.json",
 			"gcsPubSubSubscription":         fmt.Sprintf("projects/%s/subscriptions/%s", project, streamingCfg.PubsubCfg.SubscriptionId),
+			"projectId":					 targetProfile.Conn.Sp.SpannerProject,
 		},
 		Environment: &dataflowpb.FlexTemplateRuntimeEnvironment{
 			MaxWorkers:            maxWorkers,

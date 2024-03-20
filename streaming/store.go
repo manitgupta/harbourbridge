@@ -37,6 +37,8 @@ func PersistJobDetails(ctx context.Context, targetProfile profiles.TargetProfile
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
+	//HACK TODO: override project with spannerProject
+	project = targetProfile.Conn.Sp.SpannerProject
 	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
@@ -64,6 +66,8 @@ func PersistAggregateMonitoringResources(ctx context.Context, targetProfile prof
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
+	//HACK TODO: override project with spannerProject
+	project = targetProfile.Conn.Sp.SpannerProject
 	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
@@ -101,6 +105,8 @@ func PersistResources(ctx context.Context, targetProfile profiles.TargetProfile,
 		err = fmt.Errorf("can't get resource ids: %v", err)
 		return err
 	}
+	//HACK TODO: replace project with spannerProject
+	project = targetProfile.Conn.Sp.SpannerProject
 	dbURI := fmt.Sprintf("projects/%s/instances/%s/databases/%s", project, instance, constants.METADATA_DB)
 	client, err := utils.GetClient(ctx, dbURI)
 	if err != nil {
