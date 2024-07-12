@@ -59,9 +59,74 @@ import (
 
 	index "github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/index"
 	primarykey "github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/primarykey"
-
+	"cloud.google.com/go/vertexai/genai"
 	go_ora "github.com/sijms/go-ora/v2"
 )
+
+// pdfPrompt is a sample prompt type consisting of one PDF asset, and a text question.
+type pdfPrompt struct {
+	// pdfPath is a Google Cloud Storage path starting with "gs://"
+	pdfPath string
+	// question asked to the model
+	question string
+}
+
+type MySQLSchema struct {
+	Ddl string
+}
+
+func aiSchemaConversion(w http.ResponseWriter, r *http.Request) {
+	var mySqlSchema MySQLSchema
+	reqBody, err := ioutil.ReadAll(r.Body)
+	err = json.Unmarshal(reqBody, &mySqlSchema)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+		return
+	}
+	prompt := pdfPrompt{
+             pdfPath: "gs://manit-testing/mysqltospanner.pdf",
+             question: `Use this corpus to convert MySQL schema to Spanner schema. User will give a MySQL schema and you need to give back a Spanner schema. The output should only contain the generated Spanner
+			 SQL and nothing else. The goal here is that the generated Spanner SQL can directly be applied to Spanner using Spanner's Database client.
+			 Always adhere to the following rules:
+			 1. Remember that Spanner, the DEFAULT value is always enclosed in brackets, i.e (). Any Spanner SQL generated that does not follow this rule will be incorrect.
+			 2. Spanner does not support ON UPDATE action as a Foregin key action, then skip it's conversion.
+			 3. Spanner does not support SET NULL in Foreign key actions, skip it.
+
+			 Below is the MySQL schema:
+
+             ` + mySqlSchema.Ddl + "\n",
+        }
+	ctx := context.Background()
+	projectID := "cloud-llm-preview1"
+	location := "us-central1"
+	modelName := "gemini-1.5-flash-001"
+	client, err := genai.NewClient(ctx, projectID, location)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to create client: %v", err), http.StatusInternalServerError)	
+		return
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel(modelName)
+
+	part := genai.FileData{
+			MIMEType: "application/pdf",
+			FileURI:  prompt.pdfPath,
+	}
+
+	res, err := model.GenerateContent(ctx, part, genai.Text(prompt.question))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to generate contents: %v", err), http.StatusInternalServerError)	
+			return
+	}
+
+	if len(res.Candidates) == 0 ||
+			len(res.Candidates[0].Content.Parts) == 0 {
+				http.Error(w, fmt.Sprintf("empty response from model"), http.StatusInternalServerError)	
+				return
+	}
+	fmt.Printf("generated response: %s\n", res.Candidates[0].Content.Parts[0])
+}
 
 // TODO:(searce):
 // 1) Test cases for APIs
