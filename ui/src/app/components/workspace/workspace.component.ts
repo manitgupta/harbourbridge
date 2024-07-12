@@ -20,6 +20,7 @@ import { InfodialogComponent } from '../infodialog/infodialog.component'
 import { FetchService } from 'src/app/services/fetch/fetch.service'
 import IStructuredReport from '../../model/structured-report'
 import * as JSZip from 'jszip'
+import { IMySQLSchema } from 'src/app/model/profile'
 
 @Component({
   selector: 'app-workspace',
@@ -183,6 +184,15 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     if (this.rerenderObj){
       this.rerenderObj.unsubscribe();
     }
+  }
+
+  convertSchema() {
+    let mySqlSchema: IMySQLSchema = {
+      Ddl: "CREATE TABLE ABC"
+    }
+    this.fetch.getAISchema(mySqlSchema).subscribe({
+      next: () => {},
+    })
   }
 
   updateConversionRatePercentages() {

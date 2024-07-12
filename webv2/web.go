@@ -76,6 +76,7 @@ type MySQLSchema struct {
 }
 
 func aiSchemaConversion(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received request for AI schema!!!")
 	var mySqlSchema MySQLSchema
 	reqBody, err := ioutil.ReadAll(r.Body)
 	err = json.Unmarshal(reqBody, &mySqlSchema)
