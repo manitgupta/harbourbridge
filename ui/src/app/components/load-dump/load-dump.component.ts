@@ -63,11 +63,13 @@ export class LoadDumpComponent implements OnInit {
       Config: dumpConfig,
       SpannerDetails: spannerDetails
     }
-    this.getSchemaRequest = this.data.getSchemaConversionFromDump(payload)
-      this.data.conv.subscribe((res) => {
+    this.getSchemaRequest = this.data.getSchemaConversionFromDumpV2(payload)
+      this.data.spannerSQL.subscribe((res) => {
         localStorage.setItem(StorageKeys.Config, JSON.stringify(payload))
         localStorage.setItem(StorageKeys.Type, InputType.DumpFile)
         localStorage.setItem(StorageKeys.SourceDbName, extractSourceDbName(dbEngine!))
+        localStorage.setItem(StorageKeys.SpannerDdl, res.SpannerDDl)
+        localStorage.setItem(StorageKeys.SourceDdl, res.SourceDdl)
         this.clickEvent.closeDatabaseLoader()
         this.router.navigate(['/workspace'])
     })

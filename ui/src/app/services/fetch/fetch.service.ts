@@ -9,6 +9,7 @@ import IConv, {
   IInterleaveStatus,
   IPrimaryKey,
   ISessionSummary,
+  ISpannerSQL,
   ITableIdAndName,
 } from '../../model/conv'
 import IDumpConfig, { IConvertFromDumpRequest } from '../../model/dump-config'
@@ -24,7 +25,7 @@ import ICreateSequence from 'src/app/model/auto-gen'
   providedIn: 'root',
 })
 export class FetchService {
-  private url: string = window.location.origin
+  private url: string = "http://localhost:8080"
   constructor(private http: HttpClient) {}
 
   connectTodb(payload: IDbConfig, dialect: string) {
@@ -54,6 +55,10 @@ export class FetchService {
 
   getSchemaConversionFromDump(payload: IConvertFromDumpRequest) {
     return this.http.post<IConv>(`${this.url}/convert/dump`, payload)
+  }
+
+  getSchemaConversionFromDumpV2(payload: IConvertFromDumpRequest) {
+    return this.http.post<ISpannerSQL>(`${this.url}/convert/dumpV2`, payload)
   }
 
   setSourceDBDetailsForDump(payload: IDumpConfig) {

@@ -248,6 +248,13 @@ export class ObjectDetailComponent implements OnInit {
     this.data.getSummary()
   }
 
+  getSourceDdl() {
+    return localStorage.getItem(StorageKeys.SourceDdl)
+  }
+  getSpannerDdl() {
+    return localStorage.getItem(StorageKeys.SpannerDdl)
+  }
+
   setSpTableRows() {
     this.spRowArray = this.fb.array([])
     this.localTableData.forEach((row) => {

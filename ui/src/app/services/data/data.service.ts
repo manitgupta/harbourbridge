@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core'
 import { FetchService } from '../fetch/fetch.service'
-import IConv, { ICreateIndex, IForeignKey, IInterleaveStatus, IPrimaryKey } from '../../model/conv'
+import IConv, { ICreateIndex, IForeignKey, IInterleaveStatus, IPrimaryKey, ISpannerSQL } from '../../model/conv'
 import IRule from 'src/app/model/rule'
 import { BehaviorSubject, forkJoin, Observable, of, Subject } from 'rxjs'
 import { catchError, filter, map, tap } from 'rxjs/operators'
@@ -23,6 +23,7 @@ import ICreateSequence from 'src/app/model/auto-gen'
 })
 export class DataService {
   private convSubject = new BehaviorSubject<IConv>({} as IConv)
+  private spannerSQLSubject = new BehaviorSubject<ISpannerSQL>({} as ISpannerSQL)
   private conversionRateSub = new BehaviorSubject({})
   private typeMapSub = new BehaviorSubject({})
   private defaultTypeMapSub = new BehaviorSubject({})
@@ -41,6 +42,7 @@ export class DataService {
 
   rule = this.ruleMapSub.asObservable()
   conv = this.convSubject.asObservable().pipe(filter((res) => Object.keys(res).length !== 0))
+  spannerSQL = this.spannerSQLSubject.asObservable().pipe(filter((res) => Object.keys(res).length !== 0))
   conversionRate = this.conversionRateSub
     .asObservable()
     .pipe(filter((res) => Object.keys(res).length !== 0))
@@ -145,6 +147,18 @@ export class DataService {
       next: (res: IConv) => {
         this.convSubject.next(res)
         this.ruleMapSub.next(res?.Rules)
+      },
+      error: (err: any) => {
+        this.clickEvent.closeDatabaseLoader()
+        this.snackbar.openSnackBar(err.error, 'Close')
+      },
+    })
+  }
+
+  getSchemaConversionFromDumpV2(payload: IConvertFromDumpRequest) {
+    return this.fetch.getSchemaConversionFromDumpV2(payload).subscribe({
+      next: (res: ISpannerSQL) => {
+        this.spannerSQLSubject.next(res)
       },
       error: (err: any) => {
         this.clickEvent.closeDatabaseLoader()

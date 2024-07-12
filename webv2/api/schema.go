@@ -1,21 +1,19 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
+	"cloud.google.com/go/vertexai/genai"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/constants"
-	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/utils"
-	"github.com/GoogleCloudPlatform/spanner-migration-tool/conversion"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal/reports"
-	"github.com/GoogleCloudPlatform/spanner-migration-tool/profiles"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/schema"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/sources/common"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/sources/mysql"
@@ -24,7 +22,6 @@ import (
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/sources/sqlserver"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/spanner/ddl"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/config"
-	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/helpers"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/index"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/primarykey"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/session"
@@ -132,6 +129,23 @@ func ConvertSchemaSQL(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(convm)
 }
 
+// pdfPrompt is a sample prompt type consisting of one PDF asset, and a text question.
+type pdfPrompt struct {
+	// pdfPath is a Google Cloud Storage path starting with "gs://"
+	pdfPath string
+	// question asked to the model
+	question string
+}
+
+type MySQLSchema struct {
+	Ddl string
+}
+
+type SpannerSQL struct {
+	SpannerDDl string
+	SourceDdl string
+}
+
 // ConvertSchemaDump converts schema from dump file to Spanner schema for
 // mysqldump and pg_dump driver.
 func ConvertSchemaDump(w http.ResponseWriter, r *http.Request) {
@@ -146,54 +160,66 @@ func ConvertSchemaDump(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
 		return
 	}
-	f, err := os.Open(constants.UPLOAD_FILE_DIR + "/" + dc.Config.FilePath)
+	f, err := os.ReadFile(constants.UPLOAD_FILE_DIR + "/" + dc.Config.FilePath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to open dump file : %v, no such file or directory", dc.Config.FilePath), http.StatusNotFound)
 		return
 	}
-	// We don't support Dynamodb in web hence no need to pass schema sample size here.
-	n := profiles.NewSourceProfileImpl{}
-	sourceProfile, _ := profiles.NewSourceProfile("", dc.Config.Driver, &n)
-	sourceProfile.Driver = dc.Config.Driver
-	schemaFromSource := conversion.SchemaFromSourceImpl{}
-	conv, err := schemaFromSource.SchemaFromDump(sourceProfile.Driver, dc.SpannerDetails.Dialect, &utils.IOStreams{In: f, Out: os.Stdout}, &conversion.ProcessDumpByDialectImpl{})
+	mysqlSchema := string(f)
+	fmt.Println("Received request for AI schema!!!")
+	prompt := pdfPrompt{
+             pdfPath: "gs://manit-genai-test/mysqltospanner.pdf",
+             question: `Use this corpus to convert MySQL schema to Spanner schema. User will give a MySQL schema and you need to give back a Spanner schema. 
+			 The output should only contain the generated Spanner SQL and nothing else. Do not format the sql with markdown, it should be something that I can
+			 store in a string variable to pass to Spanner database client's ddl field in order to create the schema. 
+			 
+			 The goal here is that the generated Spanner SQL can directly be applied to Spanner using Spanner's Database client.
+			 Always adhere to the following rules:
+			 1. Remember that Spanner, the DEFAULT value is always enclosed in brackets, i.e (). Any Spanner SQL generated that does not follow this rule will be incorrect.
+			 2. Spanner does not support ON UPDATE action as a Foregin key action, then skip it's conversion.
+			 3. Spanner does not support SET NULL in Foreign key actions, skip it.
+
+			 Below is the MySQL schema:
+
+             ` + mysqlSchema + "\n",
+        }
+	fmt.Println("constructed prompt: " + prompt.question)
+	ctx := context.Background()
+	projectID := "cloud-llm-preview1"
+	location := "us-central1"
+	modelName := "gemini-1.5-flash-001"
+	client, err := genai.NewClient(ctx, projectID, location)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Schema Conversion Error : %v", err), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("unable to create client: %v", err), http.StatusInternalServerError)	
 		return
 	}
+	defer client.Close()
 
-	sessionMetadata := session.SessionMetadata{
-		SessionName:  "NewSession",
-		DatabaseType: dc.Config.Driver,
-		DatabaseName: filepath.Base(dc.Config.FilePath),
-		Dialect:      dc.SpannerDetails.Dialect,
+	model := client.GenerativeModel(modelName)
+
+	part := genai.FileData{
+			MIMEType: "application/pdf",
+			FileURI:  prompt.pdfPath,
 	}
 
-	sessionState := session.GetSessionState()
-	sessionState.Conv.ConvLock.Lock()
-	defer sessionState.Conv.ConvLock.Unlock()
-	sessionState.Conv = conv
-
-	primarykey.DetectHotspot()
-	index.IndexSuggestion()
-
-	sessionState.SessionMetadata = sessionMetadata
-	sessionState.Driver = dc.Config.Driver
-	sessionState.DbName = ""
-	sessionState.SessionFile = ""
-	sessionState.SourceDB = nil
-	sessionState.Dialect = dc.SpannerDetails.Dialect
-	sessionState.SourceDBConnDetails = session.SourceDBConnDetails{
-		Path:           constants.UPLOAD_FILE_DIR + "/" + dc.Config.FilePath,
-		ConnectionType: helpers.DUMP_MODE,
+	res, err := model.GenerateContent(ctx, part, genai.Text(prompt.question))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to generate contents: %v", err), http.StatusInternalServerError)	
+			return
 	}
 
-	convm := session.ConvWithMetadata{
-		SessionMetadata: sessionMetadata,
-		Conv:            *conv,
+	if len(res.Candidates) == 0 ||
+			len(res.Candidates[0].Content.Parts) == 0 {
+				http.Error(w, fmt.Sprintf("empty response from model"), http.StatusInternalServerError)	
+				return
 	}
+	fmt.Printf("generated response: %s\n", res.Candidates[0].Content.Parts[0])
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(convm)
+	spannerSQL := SpannerSQL{
+		SpannerDDl: fmt.Sprintf("%s", res.Candidates[0].Content.Parts[0]),
+		SourceDdl: mysqlSchema,
+	}
+	json.NewEncoder(w).Encode(spannerSQL)
 }
 
 // GetDDL returns the Spanner DDL for each table in alphabetical order.

@@ -24,6 +24,11 @@ export default interface IConv {
   SrcSequences: Record<string, ICreateSequence>
 }
 
+export interface ISpannerSQL {
+  SpannerDDl: string
+  SourceDdl: string
+}
+
 export interface IFkeyAndIdxs {
   Name: string
   ForeignKey: Record<string, string>

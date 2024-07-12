@@ -18,10 +18,10 @@
     </div>
     <div class="inner-text">
       <span *ngIf="currentDatabase == 'spanner'">
-        To view and modify an object details, click on the object name on the Spanner draft panel.
+        {{getSpannerDdl()}}
       </span>
       <span *ngIf="currentDatabase == 'source'">
-        To view an object details, click on the object name on the {{ srcDbName }} panel.
+        {{getSourceDdl()}}
       </span>
     </div>
   </div>

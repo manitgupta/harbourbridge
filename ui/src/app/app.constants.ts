@@ -11,6 +11,8 @@ export enum StorageKeys {
   Type = 'inputType',
   Config = 'config',
   SourceDbName = 'sourceDbName',
+  SpannerDdl = 'spannerDdl',
+  SourceDdl = 'sourceDdl',
 }
 
 export enum SourceDbNames {
