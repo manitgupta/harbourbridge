@@ -11,6 +11,7 @@ require (
 	cloud.google.com/go/resourcemanager v1.9.9
 	cloud.google.com/go/spanner v1.64.0
 	cloud.google.com/go/storage v1.41.0
+	cloud.google.com/go/vertexai v0.12.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/aws/aws-sdk-go v1.44.259
 	github.com/basgys/goxml2json v1.1.0
@@ -64,7 +65,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v1.1.10 // indirect
 	cloud.google.com/go/longrunning v0.5.9 // indirect
-	cloud.google.com/go/vertexai v0.12.0
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

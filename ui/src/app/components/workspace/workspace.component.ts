@@ -21,6 +21,7 @@ import { FetchService } from 'src/app/services/fetch/fetch.service'
 import IStructuredReport from '../../model/structured-report'
 import * as JSZip from 'jszip'
 import { IMySQLSchema } from 'src/app/model/profile'
+import { SnackbarService } from 'src/app/services/snackbar/snackbar.service'
 
 @Component({
   selector: 'app-workspace',
@@ -70,6 +71,7 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     private router: Router,
     private clickEvent: ClickEventService,
     private fetch: FetchService,
+    private snackbar: SnackbarService
   ) {
     this.currentObject = null
   }
@@ -186,13 +188,19 @@ export class WorkspaceComponent implements OnInit, OnDestroy {
     }
   }
 
-  convertSchema() {
-    let mySqlSchema: IMySQLSchema = {
-      Ddl: "CREATE TABLE ABC"
+  migrateToSpanner() {
+    let ddl = localStorage.getItem(StorageKeys.SpannerDdl)
+    if (ddl) {
+      this.fetch.migrateToSpanner(ddl).subscribe({
+        next: () => {
+          this.snackbar.openSnackBar('Migration started', 'Close')
+        },
+        error: (err: any) => {
+          console.log(err.error)
+          this.snackbar.openSnackBar('Migration failed:'+ err.error,'Close', 10);
+        },
+      })
     }
-    this.fetch.getAISchema(mySqlSchema).subscribe({
-      next: () => {},
-    })
   }
 
   updateConversionRatePercentages() {

@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
 	"cloud.google.com/go/vertexai/genai"
+	spanneradmin "github.com/GoogleCloudPlatform/spanner-migration-tool/accessors/clients/spanner/admin"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/common/constants"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/internal/reports"
@@ -27,6 +29,7 @@ import (
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/session"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/types"
 	"github.com/GoogleCloudPlatform/spanner-migration-tool/webv2/utilities"
+	adminpb "google.golang.org/genproto/googleapis/spanner/admin/database/v1"
 )
 
 var mysqlDefaultTypeMap = make(map[string]ddl.Type)
@@ -143,7 +146,7 @@ type MySQLSchema struct {
 
 type SpannerSQL struct {
 	SpannerDDl string
-	SourceDdl string
+	SourceDdl  string
 }
 
 // ConvertSchemaDump converts schema from dump file to Spanner schema for
@@ -168,8 +171,8 @@ func ConvertSchemaDump(w http.ResponseWriter, r *http.Request) {
 	mysqlSchema := string(f)
 	fmt.Println("Received request for AI schema!!!")
 	prompt := pdfPrompt{
-             pdfPath: "gs://manit-genai-test/mysqltospanner.pdf",
-             question: `Use this corpus to convert MySQL schema to Spanner schema. User will give a MySQL schema and you need to give back a Spanner schema. 
+		pdfPath: "gs://khajanchi-gsql/mysqltospanner.pdf",
+		question: `Use this corpus to convert MySQL schema to Spanner schema. User will give a MySQL schema and you need to give back a Spanner schema. 
 			 The output should only contain the generated Spanner SQL and nothing else. Do not format the sql with markdown, it should be something that I can
 			 store in a string variable to pass to Spanner database client's ddl field in order to create the schema. 
 			 
@@ -182,15 +185,15 @@ func ConvertSchemaDump(w http.ResponseWriter, r *http.Request) {
 			 Below is the MySQL schema:
 
              ` + mysqlSchema + "\n",
-        }
+	}
 	fmt.Println("constructed prompt: " + prompt.question)
 	ctx := context.Background()
-	projectID := "cloud-llm-preview1"
+	projectID := "span-cloud-testing"
 	location := "us-central1"
 	modelName := "gemini-1.5-flash-001"
 	client, err := genai.NewClient(ctx, projectID, location)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to create client: %v", err), http.StatusInternalServerError)	
+		http.Error(w, fmt.Sprintf("unable to create client: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer client.Close()
@@ -198,28 +201,92 @@ func ConvertSchemaDump(w http.ResponseWriter, r *http.Request) {
 	model := client.GenerativeModel(modelName)
 
 	part := genai.FileData{
-			MIMEType: "application/pdf",
-			FileURI:  prompt.pdfPath,
+		MIMEType: "application/pdf",
+		FileURI:  prompt.pdfPath,
 	}
 
 	res, err := model.GenerateContent(ctx, part, genai.Text(prompt.question))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to generate contents: %v", err), http.StatusInternalServerError)	
-			return
+		http.Error(w, fmt.Sprintf("unable to generate contents: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	if len(res.Candidates) == 0 ||
-			len(res.Candidates[0].Content.Parts) == 0 {
-				http.Error(w, fmt.Sprintf("empty response from model"), http.StatusInternalServerError)	
-				return
+		len(res.Candidates[0].Content.Parts) == 0 {
+		http.Error(w, fmt.Sprintf("empty response from model"), http.StatusInternalServerError)
+		return
 	}
 	fmt.Printf("generated response: %s\n", res.Candidates[0].Content.Parts[0])
 	w.WriteHeader(http.StatusOK)
+
+	spannerDdl := strings.ReplaceAll(fmt.Sprintf("%s", res.Candidates[0].Content.Parts[0]), ";", ";\n")
+	mysqlSchema = strings.ReplaceAll(cleanseSQL(mysqlSchema), ";", ";\n")
 	spannerSQL := SpannerSQL{
-		SpannerDDl: fmt.Sprintf("%s", res.Candidates[0].Content.Parts[0]),
-		SourceDdl: mysqlSchema,
+		SpannerDDl: spannerDdl,
+		SourceDdl:  cleanseSQL(mysqlSchema),
 	}
 	json.NewEncoder(w).Encode(spannerSQL)
+}
+
+func MigrateToSpanner(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Body Read Error : %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+	adminClientImpl, err := spanneradmin.NewAdminClientImpl(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can create spanner admin client: %v", err), http.StatusInternalServerError)
+		return
+	}
+	req := &adminpb.CreateDatabaseRequest{
+		Parent: fmt.Sprintf("projects/%s/instances/%s", "span-cloud-testing", "shreya-test"),
+	}
+	req.CreateStatement = "CREATE DATABASE `" + "ai_test" + "`"
+	splitStatements := strings.Split(string(reqBody), ";")
+	var extraStatements []string
+	for _, stmt := range splitStatements {
+		stmt = strings.ReplaceAll(stmt, "\n", "")
+		stmt = strings.ReplaceAll(stmt, ";", "")
+		if stmt != "" {
+			extraStatements = append(extraStatements, stmt)
+		}
+	}
+	req.ExtraStatements = extraStatements
+	fmt.Println("Spanner request: ", req)
+
+	op, err := adminClientImpl.CreateDatabase(ctx, req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can't build CreateDatabaseRequest: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if _, err := op.Wait(ctx); err != nil {
+		http.Error(w, fmt.Sprintf("createDatabase call failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func cleanseSQL(input string) string {
+	re := regexp.MustCompile(`--.*`)
+	cleansed := re.ReplaceAllString(input, "")
+
+	re = regexp.MustCompile(`/\*![0-9]{5} .*? \*/;`)
+	cleansed = re.ReplaceAllString(cleansed, "")
+
+	statements := strings.Split(cleansed, ";")
+
+	var validStatements []string
+	for _, stmt := range statements {
+		trimmedStmt := strings.TrimSpace(stmt)
+		if trimmedStmt != "" {
+			validStatements = append(validStatements, trimmedStmt)
+		}
+	}
+
+	return strings.Join(validStatements, ";\n") + ";"
 }
 
 // GetDDL returns the Spanner DDL for each table in alphabetical order.

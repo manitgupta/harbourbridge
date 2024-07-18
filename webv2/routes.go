@@ -45,7 +45,7 @@ func getRoutes() *mux.Router {
 	}
 
 	ctx := context.Background()
-	spClient, _:= spinstanceadmin.NewInstanceAdminClientImpl(ctx)
+	spClient, _ := spinstanceadmin.NewInstanceAdminClientImpl(ctx)
 	dsClient, _ := ds.NewDatastreamClientImpl(ctx)
 	storageclient, _ := storageclient.NewStorageClientImpl(ctx)
 	validateResourceImpl := conversion.NewValidateResourcesImpl(&spanneraccessor.SpannerAccessorImpl{}, spClient, &datastream_accessor.DatastreamAccessorImpl{},
@@ -151,6 +151,7 @@ func getRoutes() *mux.Router {
 
 	router.HandleFunc("/GetTableWithErrors", api.GetTableWithErrors).Methods("GET")
 	router.HandleFunc("/ping", getBackendHealth).Methods("GET")
+	router.HandleFunc("/migrateToSpanner", api.MigrateToSpanner).Methods("POST")
 
 	router.PathPrefix("/").Handler(frontendStatic)
 	return router

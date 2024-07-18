@@ -126,9 +126,9 @@ export class FetchService {
   getDStructuredReport(){
     return this.http.get<IStructuredReport>(`${this.url}/downloadStructuredReport`)
   }
-  
-  getAISchema(payload: IMySQLSchema) {
-    return this.http.post(`${this.url}/aiSchema`, payload)
+
+  migrateToSpanner(spannerDdl: string) {
+    return this.http.post(`${this.url}/migrateToSpanner`, spannerDdl)
   }
 
   getDTextReport(){
